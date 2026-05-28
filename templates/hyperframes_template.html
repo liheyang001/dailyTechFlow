@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="{{LANG}}">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      width: 1280px;
+      height: 720px;
+      overflow: hidden;
+      background: #011627;
+      font-family: 'Barlow Condensed', 'Noto Sans JP', sans-serif;
+    }
+
+    .scene {
+      position: absolute;
+      top: 0; left: 0;
+      width: 1280px;
+      height: 720px;
+      overflow: hidden;
+      background-color: #011627;
+    }
+
+    /* Ambient decoratives */
+    .bg-glow {
+      position: absolute;
+      border-radius: 50%;
+      pointer-events: none;
+    }
+    .bg-glow-1 {
+      width: 900px; height: 900px;
+      top: -150px; right: -220px;
+      background: radial-gradient(circle, rgba(46,196,182,0.07) 0%, rgba(46,196,182,0) 70%);
+    }
+    .bg-glow-2 {
+      width: 600px; height: 600px;
+      bottom: -160px; left: -100px;
+      background: radial-gradient(circle, rgba(255,159,28,0.06) 0%, rgba(255,159,28,0) 70%);
+    }
+
+    /* ── Intro ── */
+    #scene-intro .scene-content {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      width: 100%; height: 100%;
+      padding: 90px 110px;
+    }
+    .intro-title {
+      font-size: 128px;
+      font-weight: 800;
+      color: #FDFFFC;
+      letter-spacing: -0.02em;
+      line-height: 0.92;
+      text-transform: uppercase;
+      margin-bottom: 24px;
+    }
+    .intro-line {
+      width: 260px; height: 3px;
+      background: #2EC4B6;
+      margin-bottom: 22px;
+    }
+    .intro-tagline {
+      font-family: 'DM Sans', 'Noto Sans JP', sans-serif;
+      font-size: 30px;
+      font-weight: 300;
+      color: rgba(253,255,252,0.65);
+      letter-spacing: 0.04em;
+      margin-bottom: 18px;
+    }
+    .intro-date {
+      font-family: 'DM Sans', monospace;
+      font-size: 20px;
+      font-weight: 500;
+      color: #FF9F1C;
+      letter-spacing: 0.1em;
+    }
+
+    /* ── News segments ── */
+    .seg-scene .scene-content {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      width: 62%; height: 100%;
+      padding: 72px 88px;
+    }
+    .seg-cover {
+      position: absolute;
+      top: 0; right: 0;
+      width: 42%;
+      height: 100%;
+      background-size: cover;
+      background-position: center;
+    }
+    .seg-cover-fade {
+      position: absolute;
+      top: 0; right: 0;
+      width: 52%;
+      height: 100%;
+      background: linear-gradient(to right, #011627 0%, rgba(1,22,39,0.85) 35%, rgba(1,22,39,0) 100%);
+      z-index: 5;
+    }
+    .seg-num {
+      display: inline-block;
+      align-self: flex-start;
+      font-size: 14px;
+      font-weight: 700;
+      color: #011627;
+      background: #2EC4B6;
+      padding: 4px 14px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 18px;
+    }
+    .seg-accent-line {
+      width: 100%; height: 1px;
+      background: rgba(46,196,182,0.25);
+      margin-bottom: 22px;
+    }
+    .seg-headline {
+      font-size: 62px;
+      font-weight: 800;
+      color: #FDFFFC;
+      letter-spacing: -0.01em;
+      line-height: 1.12;
+      margin-bottom: 20px;
+      word-break: keep-all;
+    }
+    .seg-divider {
+      width: 56px; height: 2px;
+      background: #FF9F1C;
+      margin-bottom: 18px;
+    }
+    .seg-narration {
+      font-family: 'DM Sans', 'Noto Sans JP', sans-serif;
+      font-size: 23px;
+      font-weight: 300;
+      color: rgba(253,255,252,0.82);
+      line-height: 1.7;
+      letter-spacing: 0.01em;
+      margin-bottom: auto;
+    }
+    .seg-footer {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 28px;
+    }
+    .footer-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: #2EC4B6;
+      flex-shrink: 0;
+    }
+    .footer-name {
+      font-size: 16px;
+      font-weight: 700;
+      color: #2EC4B6;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    /* ── Outro ── */
+    #scene-outro .scene-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 100%; height: 100%;
+      padding: 90px;
+      text-align: center;
+    }
+    .outro-title {
+      font-size: 110px;
+      font-weight: 800;
+      color: #FDFFFC;
+      letter-spacing: -0.02em;
+      text-transform: uppercase;
+      line-height: 0.95;
+      margin-bottom: 26px;
+    }
+    .outro-line {
+      width: 180px; height: 3px;
+      background: #2EC4B6;
+      margin-bottom: 30px;
+    }
+    .outro-cta {
+      font-family: 'DM Sans', 'Noto Sans JP', sans-serif;
+      font-size: 28px;
+      font-weight: 400;
+      color: #FF9F1C;
+      letter-spacing: 0.05em;
+      margin-bottom: 16px;
+    }
+    .outro-label {
+      font-family: 'DM Sans', 'Noto Sans JP', sans-serif;
+      font-size: 20px;
+      font-weight: 300;
+      color: rgba(253,255,252,0.45);
+      letter-spacing: 0.06em;
+    }
+  </style>
+</head>
+<body>
+  <div id="dtf-root"
+       data-composition-id="dtf-main"
+       data-start="0"
+       data-duration="{{TOTAL_DURATION}}"
+       data-width="1280"
+       data-height="720">
+
+    <!-- Voiceover (starts after intro) -->
+    <audio id="el-audio"
+      data-start="5"
+      data-duration="{{AUDIO_DURATION}}"
+      data-track-index="0"
+      src="{{VOICEOVER_PATH}}"
+      data-volume="1"></audio>
+
+    <!-- ── Scene: Intro ── -->
+    <div id="scene-intro" class="scene">
+      <div class="bg-glow bg-glow-1"></div>
+      <div class="bg-glow bg-glow-2"></div>
+      <div class="scene-content">
+        <div id="intro-title" class="intro-title">DailyTechFlow</div>
+        <div id="intro-line" class="intro-line"></div>
+        <div id="intro-tagline" class="intro-tagline">{{LANG_LABEL}}</div>
+        <div id="intro-date" class="intro-date">{{DATE_STR}}</div>
+      </div>
+    </div>
+
+    <!-- ── Scene: News 1 ── -->
+    <div id="scene-1" class="scene seg-scene" style="opacity: 0;">
+      <div class="bg-glow bg-glow-1"></div>
+      <div id="seg1-cover" class="seg-cover" style="background-image: url('{{COVER_IMAGE_PATH}}');"></div>
+      <div class="seg-cover-fade"></div>
+      <div class="scene-content">
+        <div id="seg1-num" class="seg-num">01 / 03</div>
+        <div class="seg-accent-line"></div>
+        <div id="seg1-headline" class="seg-headline">{{HEADLINE_1}}</div>
+        <div class="seg-divider"></div>
+        <div id="seg1-narration" class="seg-narration">{{NARRATION_1}}</div>
+        <div class="seg-footer">
+          <div class="footer-dot"></div>
+          <div class="footer-name">DailyTechFlow</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Scene: News 2 ── -->
+    <div id="scene-2" class="scene seg-scene" style="opacity: 0;">
+      <div class="bg-glow bg-glow-1"></div>
+      <div id="seg2-cover" class="seg-cover" style="background-image: url('{{COVER_IMAGE_PATH}}');"></div>
+      <div class="seg-cover-fade"></div>
+      <div class="scene-content">
+        <div id="seg2-num" class="seg-num">02 / 03</div>
+        <div class="seg-accent-line"></div>
+        <div id="seg2-headline" class="seg-headline">{{HEADLINE_2}}</div>
+        <div class="seg-divider"></div>
+        <div id="seg2-narration" class="seg-narration">{{NARRATION_2}}</div>
+        <div class="seg-footer">
+          <div class="footer-dot"></div>
+          <div class="footer-name">DailyTechFlow</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Scene: News 3 ── -->
+    <div id="scene-3" class="scene seg-scene" style="opacity: 0;">
+      <div class="bg-glow bg-glow-1"></div>
+      <div id="seg3-cover" class="seg-cover" style="background-image: url('{{COVER_IMAGE_PATH}}');"></div>
+      <div class="seg-cover-fade"></div>
+      <div class="scene-content">
+        <div id="seg3-num" class="seg-num">03 / 03</div>
+        <div class="seg-accent-line"></div>
+        <div id="seg3-headline" class="seg-headline">{{HEADLINE_3}}</div>
+        <div class="seg-divider"></div>
+        <div id="seg3-narration" class="seg-narration">{{NARRATION_3}}</div>
+        <div class="seg-footer">
+          <div class="footer-dot"></div>
+          <div class="footer-name">DailyTechFlow</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Scene: Outro ── -->
+    <div id="scene-outro" class="scene" style="opacity: 0;">
+      <div class="bg-glow bg-glow-1"></div>
+      <div class="bg-glow bg-glow-2"></div>
+      <div class="scene-content">
+        <div id="outro-title" class="outro-title">DailyTechFlow</div>
+        <div class="outro-line"></div>
+        <div id="outro-cta" class="outro-cta">{{CTA_TEXT}}</div>
+        <div id="outro-label" class="outro-label">{{OUTRO_LABEL}}</div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script>
+      window.__timelines = window.__timelines || {};
+      var tl = gsap.timeline({ paused: true });
+
+      var T = {
+        seg1Start: {{SEG1_START}},
+        seg2Start: {{SEG2_START}},
+        seg3Start: {{SEG3_START}},
+        outroStart: {{OUTRO_START}},
+        totalDur: {{TOTAL_DURATION}}
+      };
+      var TD = 0.45; // crossfade duration
+
+      // Ambient glow breathe (repeat calculated from total duration)
+      var g1Cycles = Math.max(0, Math.ceil(T.totalDur / 4) - 1);
+      var g2Cycles = Math.max(0, Math.ceil(T.totalDur / 6) - 1);
+      tl.to(".bg-glow-1", { scale: 1.12, duration: 2, ease: "sine.inOut", yoyo: true, repeat: g1Cycles }, 0);
+      tl.to(".bg-glow-2", { scale: 1.08, duration: 3, ease: "sine.inOut", yoyo: true, repeat: g2Cycles }, 1.5);
+
+      // ── Intro entrance ──
+      tl.from("#intro-title", { y: 60, opacity: 0, duration: 0.9, ease: "power3.out" }, 0.2);
+      tl.from("#intro-line", { scaleX: 0, duration: 0.7, ease: "expo.out", transformOrigin: "left center" }, 0.7);
+      tl.from("#intro-tagline", { y: 28, opacity: 0, duration: 0.6, ease: "sine.inOut" }, 0.85);
+      tl.from("#intro-date", { opacity: 0, duration: 0.5, ease: "power2.out" }, 1.1);
+
+      // ── Crossfade: intro → scene-1 ──
+      tl.to("#scene-intro", { opacity: 0, duration: TD, ease: "power2.inOut" }, T.seg1Start - TD / 2);
+      tl.to("#scene-1",     { opacity: 1, duration: TD, ease: "power2.inOut" }, T.seg1Start - TD / 2);
+
+      // ── Scene 1 entrance ──
+      tl.from("#seg1-cover",    { x: 40, opacity: 0, duration: 0.7, ease: "power3.out" }, T.seg1Start + 0.1);
+      tl.from("#seg1-num",      { scale: 0, opacity: 0, duration: 0.4, ease: "back.out(1.6)" }, T.seg1Start + 0.2);
+      tl.from("#seg1-headline", { y: 45, opacity: 0, duration: 0.7, ease: "expo.out" }, T.seg1Start + 0.35);
+      tl.from("#seg1-narration",{ y: 22, opacity: 0, duration: 0.55, ease: "power2.out" }, T.seg1Start + 0.7);
+
+      // ── Crossfade: scene-1 → scene-2 ──
+      tl.to("#scene-1", { opacity: 0, duration: TD, ease: "power2.inOut" }, T.seg2Start - TD / 2);
+      tl.to("#scene-2", { opacity: 1, duration: TD, ease: "power2.inOut" }, T.seg2Start - TD / 2);
+
+      // ── Scene 2 entrance ──
+      tl.from("#seg2-cover",    { x: 40, opacity: 0, duration: 0.7, ease: "power3.out" }, T.seg2Start + 0.1);
+      tl.from("#seg2-num",      { scale: 0, opacity: 0, duration: 0.4, ease: "back.out(1.6)" }, T.seg2Start + 0.2);
+      tl.from("#seg2-headline", { y: 45, opacity: 0, duration: 0.7, ease: "expo.out" }, T.seg2Start + 0.35);
+      tl.from("#seg2-narration",{ y: 22, opacity: 0, duration: 0.55, ease: "power2.out" }, T.seg2Start + 0.7);
+
+      // ── Crossfade: scene-2 → scene-3 ──
+      tl.to("#scene-2", { opacity: 0, duration: TD, ease: "power2.inOut" }, T.seg3Start - TD / 2);
+      tl.to("#scene-3", { opacity: 1, duration: TD, ease: "power2.inOut" }, T.seg3Start - TD / 2);
+
+      // ── Scene 3 entrance ──
+      tl.from("#seg3-cover",    { x: 40, opacity: 0, duration: 0.7, ease: "power3.out" }, T.seg3Start + 0.1);
+      tl.from("#seg3-num",      { scale: 0, opacity: 0, duration: 0.4, ease: "back.out(1.6)" }, T.seg3Start + 0.2);
+      tl.from("#seg3-headline", { y: 45, opacity: 0, duration: 0.7, ease: "expo.out" }, T.seg3Start + 0.35);
+      tl.from("#seg3-narration",{ y: 22, opacity: 0, duration: 0.55, ease: "power2.out" }, T.seg3Start + 0.7);
+
+      // ── Crossfade: scene-3 → outro ──
+      tl.to("#scene-3",     { opacity: 0, duration: TD, ease: "power2.inOut" }, T.outroStart - TD / 2);
+      tl.to("#scene-outro", { opacity: 1, duration: TD, ease: "power2.inOut" }, T.outroStart - TD / 2);
+
+      // ── Outro entrance ──
+      tl.from("#outro-title", { y: 50, opacity: 0, duration: 0.9, ease: "power3.out" }, T.outroStart + 0.2);
+      tl.from("#outro-cta",   { scale: 0.85, opacity: 0, duration: 0.6, ease: "back.out(1.3)" }, T.outroStart + 0.7);
+      tl.from("#outro-label", { y: 18, opacity: 0, duration: 0.5, ease: "sine.inOut" }, T.outroStart + 1.1);
+
+      // ── Final fade out (outro only — allowed on last scene) ──
+      tl.to("#scene-outro", { opacity: 0, duration: 1.2, ease: "power2.in" }, T.totalDur - 1.5);
+
+      window.__timelines["dtf-main"] = tl;
+    </script>
+  </div>
+</body>
+</html>
