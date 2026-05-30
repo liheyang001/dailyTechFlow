@@ -1,11 +1,12 @@
 import json
 import os
+import re
 
 import requests
 
 
 def _extract(url: str, api_key: str) -> str:
-    """抓取选中新闻的原文全文。"""
+    """抓取选中新闻的原文全文（付费墙站点可能失败）。"""
     resp = requests.post(
         "https://api.tavily.com/extract",
         json={"api_key": api_key, "urls": [url]},
@@ -16,15 +17,25 @@ def _extract(url: str, api_key: str) -> str:
     return results[0].get("raw_content", "") if results else ""
 
 
-def _related(query: str, api_key: str) -> list:
-    """搜索相关报道，补充数据和角度。"""
+def _search_fulltext(query: str, api_key: str, max_results: int = 6) -> list:
+    """对选题做深度搜索，聚合多个来源的正文——绕开单一付费墙，凑齐可交叉核对的数据。"""
     resp = requests.post(
         "https://api.tavily.com/search",
-        json={"api_key": api_key, "query": query, "max_results": 4},
-        timeout=20,
+        json={
+            "api_key": api_key,
+            "query": query,
+            "search_depth": "advanced",
+            "include_raw_content": True,
+            "max_results": max_results,
+        },
+        timeout=30,
     )
     resp.raise_for_status()
     return resp.json().get("results", [])
+
+
+def _clean(text: str) -> str:
+    return re.sub(r"\n{3,}", "\n\n", (text or "").strip())
 
 
 def run(date_str: str, config: dict) -> bool:
@@ -39,21 +50,22 @@ def run(date_str: str, config: dict) -> bool:
 
     api_key = config["tavily"]["api_key"]
 
+    # 1) 原文全文（付费墙/反爬时可能为空，靠下方多源兜底）
     raw = ""
     try:
         raw = _extract(pick["url"], api_key)
-        print(f"[researcher] 原文全文抓取成功，{len(raw)} 字符")
+        print(f"[researcher] 原文全文 {len(raw)} 字符")
     except Exception as e:
-        print(f"[researcher] 原文全文抓取失败（用摘要兜底）：{e}")
+        print(f"[researcher] 原文抓取失败：{e}")
 
-    related = []
+    # 2) 多源深度搜索：聚合多篇报道的正文，交叉核对、提取可对比数字
+    sources = []
     try:
-        related = _related(pick["title"], api_key)
-        # 去掉与原文同源的那条，避免重复
-        related = [r for r in related if r.get("url") != pick["url"]][:3]
-        print(f"[researcher] 找到 {len(related)} 条相关报道")
+        sources = _search_fulltext(pick["title"], api_key)
+        sources = [s for s in sources if s.get("url") != pick["url"]]
+        print(f"[researcher] 多源报道 {len(sources)} 篇")
     except Exception as e:
-        print(f"[researcher] 相关报道搜索失败：{e}")
+        print(f"[researcher] 多源搜索失败：{e}")
 
     lines = [
         f"# 选题：{pick['title']}",
@@ -63,18 +75,24 @@ def run(date_str: str, config: dict) -> bool:
         f"- 入选理由：{pick.get('reason', '')}",
         "",
         "## 原文摘要",
-        pick.get("summary", ""),
+        _clean(pick.get("summary", "")),
         "",
         "## 原文全文",
-        raw[:8000] if raw else "（抓取失败，仅有上方摘要可用）",
+        _clean(raw)[:6000] if raw else "（原文抓取失败，见下方多源报道）",
         "",
-        "## 相关报道",
+        "## 多源详细报道（用于交叉核对数据、提取可对比数字）",
     ]
-    if related:
-        for r in related:
-            lines.append(f"### {r.get('title', '')}")
-            lines.append(f"{r.get('url', '')}")
-            lines.append(r.get("content", ""))
+    if sources:
+        for s in sources:
+            lines.append(f"### {s.get('title', '')}")
+            lines.append(f"来源：{s.get('url', '')}")
+            content = _clean(s.get("content", ""))
+            raw_c = _clean(s.get("raw_content", ""))[:2500]
+            if content:
+                lines.append(content)
+            if raw_c:
+                lines.append("")
+                lines.append(raw_c)
             lines.append("")
     else:
         lines.append("（无）")

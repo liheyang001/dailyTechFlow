@@ -11,12 +11,34 @@ def _domain(url: str) -> str:
         return ""
 
 
+def _is_article(url: str) -> bool:
+    """过滤掉栏目首页/聚合页，只保留具体文章。
+
+    具体文章 URL 通常路径较深、末段是带连字符的 slug，例如
+    /technology/anthropic-valuation-surges-...；而 /technology 这种
+    栏目首页抓回来全是导航菜单，没有正文。
+    """
+    path = urlparse(url).path.strip("/")
+    if not path:
+        return False  # 根域名
+    segs = path.split("/")
+    last = segs[-1]
+    return len(segs) >= 2 and ("-" in last or len(last) > 24)
+
+
 def _fetch_tavily(config: dict) -> list:
     api_key = config["tavily"]["api_key"]
     resp = requests.post(
         "https://api.tavily.com/search",
-        json={"api_key": api_key, "query": "tech news today", "max_results": 10},
-        timeout=15,
+        json={
+            "api_key": api_key,
+            "query": "latest AI, startup and big tech news",
+            "topic": "news",          # 拿具体新闻文章，而非栏目聚合页
+            "search_depth": "advanced",
+            "days": 3,                 # 最近 3 天
+            "max_results": 15,
+        },
+        timeout=20,
     )
     resp.raise_for_status()
     items = []
@@ -79,10 +101,14 @@ def run(date_str: str, config: dict) -> bool:
             print(f"[news_fetcher] Brave also failed: {e2}")
             return False
 
-    items = _deduplicate(items)[:8]
+    items = _deduplicate(items)
+    articles = [it for it in items if _is_article(it["url"])]
+    # 过滤后若太少，退回未过滤结果兜底，避免空手
+    items = (articles or items)[:8]
     if not items:
         print("[news_fetcher] No results found")
         return False
+    print(f"[news_fetcher] 过滤聚合页：{len(articles)} 篇具体文章")
 
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(items, f, ensure_ascii=False, indent=2)
