@@ -79,7 +79,7 @@ def run(date_str: str, config: dict) -> bool:
             print(f"[news_fetcher] Brave also failed: {e2}")
             return False
 
-    items = _deduplicate(items)[:3]
+    items = _deduplicate(items)[:8]
     if not items:
         print("[news_fetcher] No results found")
         return False

@@ -7,21 +7,22 @@ from datetime import date
 import yaml
 
 from src import (
-    content_generator,
-    image_generator,
+    article_writer,
+    balance_alert,
     news_fetcher,
-    publisher,
-    video_synthesizer,
-    voice_generator,
+    researcher,
+    selector,
 )
 
+# 每日精品图文流水线：抓新闻 → 挑最有影响力的一条 → 深抓资料 → 写成公众号文章
+# 视频相关模块（image_generator / voice_generator / video_synthesizer / publisher）
+# 暂从流水线移除，文件保留，待图文稳定后再启用。
 MODULES = [
-    ("M1 news_fetcher",     news_fetcher),
-    ("M2 content_generator", content_generator),
-    ("M3 image_generator",  image_generator),
-    ("M4 voice_generator",  voice_generator),
-    ("M5 video_synthesizer", video_synthesizer),
-    ("M6 publisher",        publisher),
+    ("M1 news_fetcher",   news_fetcher),
+    ("M2 selector",       selector),
+    ("M3 researcher",     researcher),
+    ("M4 article_writer", article_writer),
+    ("M7 balance_alert",  balance_alert),
 ]
 
 

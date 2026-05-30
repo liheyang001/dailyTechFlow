@@ -1,8 +1,9 @@
 import os
 
-from huggingface_hub import InferenceClient
+from google import genai
+from google.genai import types
 
-_MODEL = "black-forest-labs/FLUX.1-dev"
+_MODEL = "gemini-2.5-flash-image"
 
 
 def _extract_title(md_path: str) -> str:
@@ -35,9 +36,20 @@ def _build_prompt(title: str, lang: str) -> str:
 
 
 def _generate_image(prompt: str, api_key: str, out_path: str) -> None:
-    client = InferenceClient(api_key=api_key)
-    image = client.text_to_image(prompt, model=_MODEL, width=1280, height=720)
-    image.save(out_path)
+    client = genai.Client(api_key=api_key)
+    response = client.models.generate_content(
+        model=_MODEL,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            response_modalities=["IMAGE"],
+            image_config=types.ImageConfig(aspect_ratio="16:9"),
+        ),
+    )
+    for part in response.parts:
+        if part.inline_data is not None:
+            part.as_image().save(out_path)
+            return
+    raise RuntimeError("Gemini returned no image data")
 
 
 def run(date_str: str, config: dict) -> bool:
@@ -53,7 +65,7 @@ def run(date_str: str, config: dict) -> bool:
 
     title_zh = _extract_title(zh_article)
     title_en = _extract_title(en_article)
-    api_key = config["huggingface"]["api_key"]
+    api_key = config["gemini"]["api_key"]
 
     tasks = [
         (title_zh, "zh", os.path.join(output_dir, "cover_zh.png")),

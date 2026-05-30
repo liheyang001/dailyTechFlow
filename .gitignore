@@ -1,4 +1,5 @@
 config.yaml
+balance.json
 output/
 logs/
 __pycache__/

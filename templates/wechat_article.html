@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{TITLE}} · 公众号文章</title>
+<style>
+  /* ===== 设计系统变量 ===== */
+  :root{
+    --cream:#F5F1EA;   /* 背景暖白 */
+    --ink:#1F1B16;     /* 主文字深棕 */
+    --body:#3a342c;    /* 正文颜色 */
+    --muted:#8a8170;   /* 辅助文字 */
+    --clay:#D97757;    /* 品牌橙（强调色） */
+    --clay-soft:#FBEAE2; /* 品牌橙浅色 */
+    --line:#E3DBCD;    /* 分隔线 */
+    --card:#FFFFFF;    /* 卡片背景 */
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:#E9E2D6;
+    font-family:-apple-system,"PingFang SC","Microsoft YaHei","Noto Sans CJK SC",sans-serif;
+    color:var(--body);
+    line-height:1.9;
+  }
+  .wrap{
+    max-width:678px;
+    margin:0 auto;
+    background:var(--cream);
+    padding:0 0 64px;
+    box-shadow:0 0 40px rgba(0,0,0,.08);
+  }
+  .inner{padding:0 26px;}
+
+  /* ===== 顶部标识条 ===== */
+  .topbar{height:6px;background:var(--clay);}
+
+  /* ===== 分类标签 ===== */
+  .kicker{
+    display:inline-block;
+    margin:30px 0 0;
+    background:var(--clay);
+    color:#fff;
+    font-size:13px;
+    font-weight:800;
+    letter-spacing:.08em;
+    padding:6px 14px;
+    border-radius:4px;
+  }
+
+  /* ===== 标题 ===== */
+  h1{
+    font-size:30px;
+    line-height:1.32;
+    color:var(--ink);
+    font-weight:800;
+    margin:18px 0 14px;
+    letter-spacing:-.01em;
+  }
+
+  /* ===== 元信息行（日期、阅读时长） ===== */
+  .meta{
+    font-size:13px;
+    color:var(--muted);
+    margin-bottom:22px;
+    display:flex;
+    gap:14px;
+    align-items:center;
+    flex-wrap:wrap;
+  }
+  .meta .dot{width:4px;height:4px;border-radius:50%;background:var(--muted);display:inline-block;}
+
+  /* ===== 导语块 ===== */
+  .lead{
+    background:var(--clay-soft);
+    border-left:4px solid var(--clay);
+    padding:16px 18px;
+    border-radius:0 8px 8px 0;
+    font-size:15.5px;
+    color:#6b3a28;
+    margin:0 0 26px;
+  }
+  .lead b{color:var(--clay);}
+
+  /* ===== 图片 ===== */
+  figure{margin:26px 0;}
+  figure img{
+    width:100%;
+    display:block;
+    border-radius:12px;
+    box-shadow:0 8px 26px rgba(31,27,22,.10);
+  }
+  figcaption{
+    font-size:12.5px;
+    color:var(--muted);
+    text-align:center;
+    margin-top:9px;
+  }
+
+  /* ===== 章节标题 h2（带编号圆角标） ===== */
+  h2{
+    font-size:21px;
+    color:var(--ink);
+    font-weight:800;
+    margin:42px 0 6px;
+    display:flex;
+    align-items:center;
+    gap:11px;
+  }
+  h2 .num{
+    flex:none;
+    width:30px;
+    height:30px;
+    border-radius:8px;
+    background:var(--ink);
+    color:var(--cream);
+    font-size:15px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-weight:800;
+  }
+
+  /* h2 下方副标题 */
+  h2 + .sub{
+    font-size:13px;
+    color:var(--clay);
+    font-weight:700;
+    margin:0 0 14px 41px;
+    letter-spacing:.04em;
+  }
+
+  /* ===== 正文段落 ===== */
+  p{font-size:16px;margin:14px 0;}
+
+  /* ===== 要点列表框（带编号圆圈） ===== */
+  .keybox{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:6px 20px 14px;
+    margin:6px 0 8px;
+  }
+  .keybox .kli{
+    display:flex;
+    gap:13px;
+    padding:13px 0;
+    border-bottom:1px dashed var(--line);
+    align-items:flex-start;
+  }
+  .keybox .kli:last-child{border-bottom:none;}
+  .keybox .tick{
+    flex:none;
+    width:22px;
+    height:22px;
+    border-radius:50%;
+    background:var(--clay);
+    color:#fff;
+    font-size:13px;
+    font-weight:800;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    margin-top:2px;
+  }
+  .keybox .kt b{color:var(--ink);}
+
+  /* ===== 数据对比表格 ===== */
+  table{
+    width:100%;
+    border-collapse:collapse;
+    margin:8px 0;
+    font-size:14.5px;
+    background:var(--card);
+    border-radius:12px;
+    overflow:hidden;
+    box-shadow:0 4px 16px rgba(31,27,22,.06);
+  }
+  th,td{padding:13px 14px;text-align:left;border-bottom:1px solid var(--line);}
+  thead th{background:var(--ink);color:var(--cream);font-weight:700;font-size:13.5px;}
+  tbody tr:last-child td{border-bottom:none;}
+  td.up{color:var(--clay);font-weight:800;} /* 数字高亮用 */
+  tbody tr:nth-child(even){background:#FBF8F2;}
+
+  /* ===== 合作伙伴/引用列表 ===== */
+  .partner{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:4px 18px;
+    margin:14px 0;
+  }
+  .partner .pli{padding:12px 0;border-bottom:1px solid var(--line);font-size:14.5px;}
+  .partner .pli:last-child{border-bottom:none;}
+  .partner .pname{color:var(--clay);font-weight:800;}
+
+  /* ===== 引用语（大字居中） ===== */
+  .quote{
+    font-size:18px;
+    line-height:1.7;
+    color:var(--ink);
+    font-weight:700;
+    text-align:center;
+    margin:30px 18px;
+    position:relative;
+  }
+  .quote:before{
+    content:"\201C";
+    font-size:60px;
+    color:var(--clay);
+    opacity:.35;
+    position:absolute;
+    left:-6px;
+    top:-26px;
+    font-family:Georgia,serif;
+  }
+
+  /* ===== 功能亮点卡片（左边框强调） ===== */
+  .feat{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-left:4px solid var(--clay);
+    border-radius:0 12px 12px 0;
+    padding:15px 18px;
+    margin:14px 0;
+  }
+  .feat h3{margin:0 0 6px;font-size:16.5px;color:var(--ink);}
+  .feat p{margin:0;font-size:14.5px;}
+  .feat .tag{
+    display:inline-block;
+    background:var(--clay-soft);
+    color:var(--clay);
+    font-size:11px;
+    font-weight:800;
+    padding:3px 9px;
+    border-radius:20px;
+    margin-left:6px;
+    vertical-align:middle;
+  }
+
+  /* ===== 价格卡片（横排） ===== */
+  .price{display:flex;gap:12px;margin:16px 0;flex-wrap:wrap;}
+  .price .pc{
+    flex:1;
+    min-width:150px;
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:16px 18px;
+  }
+  .price .pc .lab{font-size:13px;color:var(--muted);font-weight:700;}
+  .price .pc .val{font-size:15px;color:var(--ink);font-weight:800;margin-top:6px;line-height:1.6;}
+  .price .pc .val span{color:var(--clay);}
+
+  /* ===== 分隔符 ===== */
+  .divider{
+    text-align:center;
+    color:var(--clay);
+    letter-spacing:.6em;
+    margin:38px 0 30px;
+    font-size:13px;
+    opacity:.7;
+  }
+
+  /* ===== 结尾深色框 ===== */
+  .ending{
+    background:var(--ink);
+    color:var(--cream);
+    border-radius:16px;
+    padding:24px 22px;
+    margin:30px 0 10px;
+  }
+  .ending p{color:#E9E2D6;font-size:15.5px;margin:10px 0;}
+  .ending b{color:#fff;}
+  .ending .big{font-size:19px;font-weight:800;color:#fff;line-height:1.6;}
+
+  /* ===== 来源注释 ===== */
+  .src{font-size:12px;color:var(--muted);text-align:center;margin-top:26px;font-style:normal;}
+
+  /* ===== 内联代码 ===== */
+  code{
+    background:#efe7d8;
+    padding:2px 7px;
+    border-radius:5px;
+    font-size:13px;
+    color:#6b3a28;
+    font-family:"SF Mono",Consolas,monospace;
+  }
+
+  /* ===== 数据条形图（纯 CSS，无图片依赖） ===== */
+  .chart{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:18px 20px;
+    margin:18px 0;
+  }
+  .chart-title{font-size:14.5px;font-weight:800;color:var(--ink);margin-bottom:14px;}
+  .bar-row{display:flex;align-items:center;gap:10px;margin:10px 0;}
+  .bar-label{flex:none;width:96px;font-size:13px;color:var(--body);font-weight:700;}
+  .bar{flex:1;background:#F0E9DC;border-radius:6px;overflow:hidden;height:26px;}
+  .bar-fill{
+    background:var(--clay);
+    height:100%;
+    border-radius:6px;
+    display:flex;
+    align-items:center;
+    justify-content:flex-end;
+    padding-right:10px;
+    color:#fff;
+    font-size:12.5px;
+    font-weight:800;
+    white-space:nowrap;
+    box-sizing:border-box;
+  }
+  .bar-fill.alt{background:var(--ink);}      /* 对比项用深色 */
+  .chart-src{font-size:11.5px;color:var(--muted);margin-top:12px;text-align:right;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar"></div>
+  <div class="inner">
+
+    <!-- 分类标签：如 "AI · 模型发布" / "产品 · 融资" / "行业 · 政策" -->
+    <span class="kicker">{{CATEGORY}}</span>
+
+    <!-- 主标题：不超过28字，简洁有力 -->
+    <h1>{{TITLE}}</h1>
+
+    <!-- 元信息：日期 + 预计阅读时长 -->
+    <div class="meta">
+      <span>{{DATE}}</span>
+      <span class="dot"></span>
+      <span>约 {{READ_TIME}} 分钟读完</span>
+    </div>
+
+    <!-- 导语：1-2句话，点出核心价值，可加 <b> 强调关键词 -->
+    <div class="lead">{{LEAD}}</div>
+
+    <!-- ===== 正文内容区 ===== -->
+    <!--
+      可用组件清单（复制粘贴使用）：
+
+      【章节标题】
+      <h2><span class="num">1</span>标题文字</h2>
+      <div class="sub">副标题（可选）</div>
+
+      【要点列表框】
+      <div class="keybox">
+        <div class="kli"><span class="tick">1</span><span class="kt"><b>关键词</b>——解释文字</span></div>
+        <div class="kli"><span class="tick">2</span><span class="kt"><b>关键词</b>——解释文字</span></div>
+      </div>
+
+      【数据对比表格】
+      <table>
+        <thead><tr><th>维度</th><th>旧版</th><th>新版</th></tr></thead>
+        <tbody>
+          <tr><td>指标名</td><td>旧值</td><td class="up">新值↑</td></tr>
+        </tbody>
+      </table>
+
+      【合作伙伴/案例引用】
+      <div class="partner">
+        <div class="pli"><span class="pname">公司名</span>：引用内容</div>
+      </div>
+
+      【大字引用】
+      <div class="quote">这里放金句或核心观点</div>
+
+      【功能亮点卡片】
+      <div class="feat">
+        <h3>功能名 <span class="tag">标签</span></h3>
+        <p>功能说明</p>
+      </div>
+
+      【价格卡片】
+      <div class="price">
+        <div class="pc"><div class="lab">方案名</div><div class="val">价格 <span>$X</span></div></div>
+      </div>
+
+      【数据条形图】（数值最大的一项 width 设 100%，其余按比例换算；务必标来源）
+      <div class="chart">
+        <div class="chart-title">图表标题（带单位）</div>
+        <div class="bar-row"><span class="bar-label">A 项</span><span class="bar"><span class="bar-fill" style="width:100%">9650</span></span></div>
+        <div class="bar-row"><span class="bar-label">B 项</span><span class="bar"><span class="bar-fill alt" style="width:83%">8000</span></span></div>
+        <div class="chart-src">来源：XXX</div>
+      </div>
+
+      【分隔符】
+      <div class="divider">· · ·</div>
+
+      【结尾深色框】
+      <div class="ending">
+        <p class="big">一句话总结</p>
+        <p>补充说明</p>
+      </div>
+
+      【来源注释】
+      <p class="src">信息来源：XXX</p>
+
+      【行内代码】
+      <code>model-name</code>
+    -->
+
+    {{CONTENT}}
+
+  </div>
+</div>
+</body>
+</html>
