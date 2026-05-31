@@ -31,10 +31,21 @@ def run(date_str: str, config: dict) -> bool:
     with open(TEMPLATE_PATH, encoding="utf-8") as f:
         template = f.read()
 
+    # 注入 feedback 模块沉淀的经验：过往哪些写法阅读/评论表现好
+    lessons_block = ""
+    lessons_path = os.path.join("feedback", "lessons.md")
+    if os.path.exists(lessons_path):
+        with open(lessons_path, encoding="utf-8") as f:
+            lessons = f.read().strip()
+        if lessons:
+            lessons_block = (
+                f"\n\n【历史经验——根据过往文章真实阅读/评论总结，写作时参考】\n{lessons}\n"
+            )
+
     client = anthropic.Anthropic(api_key=config["anthropic"]["api_key"])
 
     user_prompt = f"""请根据下面的资料，写一篇微信公众号深度文章，严格遵守你的写作标准（篇幅、结构、数据、观点）。
-
+{lessons_block}
 【资料】
 {material}
 

@@ -65,6 +65,17 @@ def run(date_str: str, config: dict) -> bool:
             + "\n".join(f"- {t}" for t in recent)
         )
 
+    # 注入 feedback 模块沉淀的经验：什么样的选题过往阅读/评论表现好
+    lessons_block = ""
+    lessons_path = os.path.join("feedback", "lessons.md")
+    if os.path.exists(lessons_path):
+        with open(lessons_path, encoding="utf-8") as f:
+            lessons = f.read().strip()
+        if lessons:
+            lessons_block = (
+                "\n\n【历史经验——根据过往文章真实阅读/评论总结，选题时务必参考】\n" + lessons
+            )
+
     client = anthropic.Anthropic(api_key=config["anthropic"]["api_key"])
     prompt = f"""你是科技公众号主编。下面是今天抓到的若干条科技新闻，请挑出**最值得写成深度文章**的一条。
 
@@ -75,7 +86,7 @@ def run(date_str: str, config: dict) -> bool:
 4. 数据（加分项）——若几条都够爆，优先选自带可对比数字（融资/估值/跑分/份额/增长率等）、能做出数据对比图的那条。但这只是加分，绝不为了数据牺牲内容质量。
 
 候选新闻：
-{_candidates(items)}{avoid_block}
+{_candidates(items)}{avoid_block}{lessons_block}
 
 只输出 JSON，不要任何其他内容：
 {{"index": 选中的序号(从1开始的整数), "reason": "为什么选它，一句话"}}"""

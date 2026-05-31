@@ -1,6 +1,7 @@
 config.yaml
 balance.json
 output/
+feedback/
 logs/
 __pycache__/
 *.pyc

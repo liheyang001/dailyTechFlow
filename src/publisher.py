@@ -151,12 +151,21 @@ def run(date_str: str, config: dict) -> bool:
         draft_media_id = _create_draft(token, title, content_html, thumb_media_id, digest)
         print(f"[publisher] Draft created: {draft_media_id}")
 
+        publish_id = ""
         if auto_publish:
             print("[publisher] Publishing draft...")
             publish_id = _publish_draft(token, draft_media_id)
             print(f"[publisher] Published: publish_id={publish_id}")
         else:
             print("[publisher] Draft saved (auto_publish=false)")
+
+        # 落盘发布凭证，供 feedback 模块事后按标题/凭证回查阅读与评论数据
+        with open(os.path.join(output_dir, "publish.json"), "w", encoding="utf-8") as f:
+            json.dump(
+                {"date": date_str, "title": title,
+                 "draft_media_id": draft_media_id, "publish_id": publish_id},
+                f, ensure_ascii=False, indent=2,
+            )
 
     except Exception as e:
         print(f"[publisher] Error: {e}")

@@ -40,6 +40,18 @@ config.yaml     API 密钥（不要提交）
 - 禁止为"将来可能需要"的功能写代码
 - 禁止把多个模块的逻辑合并到一个文件
 
+## 反馈评分系统（M8 feedback）
+
+发布 → 反馈 → 学习的闭环。`src/feedback.py` 把每篇文章的阅读/评论数打分排名，让 Claude 沉淀成 `feedback/lessons.md`，再回灌 `selector`（选题）和 `article_writer`（写作）的提示词，越写越懂读者。
+
+- **点赞不采集**：微信无公开计数接口，只用阅读 + 评论。
+- **数据来源**（`config.yaml` 的 `feedback.source`）：
+  - `manual`（当前）：手动填数字。本号是个人订阅号，无法认证、拿不到微信数据接口，这是唯一可行方式。
+    用 `python feedback_input.py <阅读> <评论> [日期]` 写入 `output/<date>/metrics.json`。
+  - `wechat`（休眠）：自动拉，需已认证账号 + 数据统计权限 + 凭据齐全。代码写好但未经真实验证，切换前须用真账号实测接口。
+- **跨目录例外**：feedback 模块跨天读 `output/` 并写 `feedback/`，是学习系统的必要破例（已获准），不适用「模块只读写当天目录」规则。
+- 攒够 `min_articles`（默认 3）篇有数据的文章才开始沉淀经验。
+
 ## Communication Style
 
 默认用中文回复。简洁，不废话。有问题先问，不要自行假设后闷头写。

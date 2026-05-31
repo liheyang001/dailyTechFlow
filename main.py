@@ -9,6 +9,7 @@ import yaml
 from src import (
     article_writer,
     balance_alert,
+    feedback,
     news_fetcher,
     researcher,
     selector,
@@ -17,12 +18,14 @@ from src import (
 # 每日精品图文流水线：抓新闻 → 挑最有影响力的一条 → 深抓资料 → 写成公众号文章
 # 视频相关模块（image_generator / voice_generator / video_synthesizer / publisher）
 # 暂从流水线移除，文件保留，待图文稳定后再启用。
+# M8 feedback 收尾：把过往文章的阅读/评论沉淀成经验，回灌 selector 与 article_writer。
 MODULES = [
     ("M1 news_fetcher",   news_fetcher),
     ("M2 selector",       selector),
     ("M3 researcher",     researcher),
     ("M4 article_writer", article_writer),
     ("M7 balance_alert",  balance_alert),
+    ("M8 feedback",       feedback),
 ]
 
 
