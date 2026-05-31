@@ -10,7 +10,9 @@ from src import (
     article_writer,
     balance_alert,
     feedback,
+    image_generator,
     news_fetcher,
+    notifier,
     researcher,
     selector,
 )
@@ -24,6 +26,8 @@ MODULES = [
     ("M2 selector",       selector),
     ("M3 researcher",     researcher),
     ("M4 article_writer", article_writer),
+    ("M5 image_gen",      image_generator),
+    ("M6 notifier",       notifier),
     ("M7 balance_alert",  balance_alert),
     ("M8 feedback",       feedback),
 ]
