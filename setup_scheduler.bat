@@ -1,36 +1,53 @@
 @echo off
-:: 注册 DailyTechFlow 每天 03:30 自动运行的 Windows 任务计划
-:: 需要以管理员身份运行
+:: 注册 DailyTechFlow 自动运行的 Windows 任务计划
+:: 周一~周六 03:30 运行；周日 22:10 运行（拆成两个周计划，覆盖七天不重叠）
+:: 跑 run_pipeline.bat（内部会 cd 到项目目录、写日志），以当前登录用户身份、
+:: 普通权限即可注册，无需管理员。任务在「用户登录时」运行。
 
-set TASK_NAME=DailyTechFlow
 set PROJECT_DIR=I:\AI\DailyTechFlow
-set PYTHON_EXE=C:\Python314\python.exe
-set MAIN_SCRIPT=%PROJECT_DIR%\main.py
-set RUN_TIME=03:30
+set LAUNCHER=%PROJECT_DIR%\run_pipeline.bat
+set CMD="\"%LAUNCHER%\""
 
-echo 正在注册任务计划：%TASK_NAME%
-echo   执行路径：%PYTHON_EXE% %MAIN_SCRIPT%
-echo   触发时间：每天 %RUN_TIME%
+echo 正在注册 DailyTechFlow 任务计划...
+echo   执行：%LAUNCHER%
+echo   周一~周六 03:30 ；周日 22:10
 echo.
 
+:: 删除旧的单一每日任务（不存在则忽略报错）
+schtasks /delete /tn "DailyTechFlow" /f >nul 2>&1
+
+:: 周一~周六 03:30
 schtasks /create ^
-  /tn "%TASK_NAME%" ^
-  /tr "\"%PYTHON_EXE%\" \"%MAIN_SCRIPT%\"" ^
-  /sc daily ^
-  /st %RUN_TIME% ^
+  /tn "DailyTechFlow_MonSat" ^
+  /tr %CMD% ^
+  /sc weekly ^
+  /d MON,TUE,WED,THU,FRI,SAT ^
+  /st 03:30 ^
   /sd 01/01/2026 ^
-  /ru "%USERNAME%" ^
-  /rl highest ^
   /f
+set ERR1=%errorlevel%
 
-if %errorlevel% equ 0 (
-    echo.
-    echo [OK] 任务计划注册成功。
-    echo      可在「任务计划程序」中查看：%TASK_NAME%
-) else (
-    echo.
-    echo [ERROR] 注册失败，请确认以管理员身份运行此脚本。
+:: 周日 22:10
+schtasks /create ^
+  /tn "DailyTechFlow_Sun" ^
+  /tr %CMD% ^
+  /sc weekly ^
+  /d SUN ^
+  /st 22:10 ^
+  /sd 01/01/2026 ^
+  /f
+set ERR2=%errorlevel%
+
+echo.
+if %ERR1% equ 0 if %ERR2% equ 0 (
+    echo [OK] 两个任务都注册成功。
+    echo      DailyTechFlow_MonSat ^(周一~周六 03:30^)
+    echo      DailyTechFlow_Sun    ^(周日 22:10^)
+    echo      可在「任务计划程序」中查看。
+    goto :end
 )
+echo [ERROR] 注册失败（MonSat=%ERR1% Sun=%ERR2%），请确认以管理员身份运行此脚本。
 
+:end
 echo.
 pause
