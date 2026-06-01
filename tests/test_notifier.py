@@ -40,6 +40,40 @@ def test_cover_block_inlines_existing_image():
         assert block.startswith('<img src="data:image/png;base64,')
 
 
+def test_article_text_strips_tags():
+    txt = notifier._article_text('<body><h1>标题</h1><p>第一段</p><p>第二段</p></body>')
+    assert "标题" in txt and "第一段" in txt and "第二段" in txt
+    assert "<" not in txt  # 标签都去掉了
+
+
+def test_build_message_attaches_full_html_and_keeps_body_light():
+    """完整带封面 HTML 进附件；正文不内嵌大图（杜绝 Gmail 截断）。"""
+    with tempfile.TemporaryDirectory() as base:
+        cover = os.path.join(base, "cover.png")
+        with open(cover, "wb") as f:
+            f.write(b"\x89PNG\r\n fake")
+        html = ('<!DOCTYPE html><html><head><meta charset="UTF-8">'
+                '<title>标题X</title></head><body>'
+                '<h1>标题X</h1><p>正文段落</p></body></html>')
+        msg = notifier._build_message(_EC, "2026-05-20", html, "标题X", cover)
+
+        atts = [p for p in msg.walk() if p.get_content_disposition() == "attachment"]
+        assert len(atts) == 1
+        assert atts[0].get_filename().endswith(".html")
+        payload = atts[0].get_payload(decode=True).decode("utf-8")
+        assert "正文段落" in payload                       # 文章在附件
+        assert "data:image/png;base64," in payload         # 封面也在附件
+        # 关键：<meta charset> 必须排在巨大的 base64 封面之前，
+        # 否则被挤出浏览器前 1024 字节嗅探窗口 → 中文乱码
+        assert payload.index("charset") < payload.index("base64,")
+
+        body_parts = [p.get_payload(decode=True).decode("utf-8") for p in msg.walk()
+                      if p.get_content_type() in ("text/plain", "text/html")
+                      and p.get_content_disposition() != "attachment"]
+        assert any("正文段落" in b for b in body_parts)      # 正文有文字预览
+        assert all("base64," not in b for b in body_parts)  # 正文无大图
+
+
 def test_missing_article_returns_false():
     with tempfile.TemporaryDirectory() as base:
         cfg = {"output_base": base, "email": _EC}
