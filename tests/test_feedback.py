@@ -13,15 +13,21 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src import feedback
 
 
-def _make_day(base, date_str, title, reason, reads=None, comments=None):
+def _make_day(base, date_str, title, reason, reads=None, comments=None,
+              likes=None, shares=None):
     """在 tmp output_base 下造一天的 pick.json（+可选 metrics.json）。"""
     day = os.path.join(base, date_str)
     os.makedirs(day, exist_ok=True)
     with open(os.path.join(day, "pick.json"), "w", encoding="utf-8") as f:
         json.dump({"title": title, "reason": reason}, f, ensure_ascii=False)
     if reads is not None:
+        m = {"reads": reads, "comments": comments}
+        if likes is not None:
+            m["likes"] = likes
+        if shares is not None:
+            m["shares"] = shares
         with open(os.path.join(day, "metrics.json"), "w", encoding="utf-8") as f:
-            json.dump({"reads": reads, "comments": comments}, f, ensure_ascii=False)
+            json.dump(m, f, ensure_ascii=False)
 
 
 def test_score_weights_comments():
@@ -30,12 +36,30 @@ def test_score_weights_comments():
     assert feedback._score(100, 2, 50) == 200
 
 
+def test_score_weights_likes_and_shares():
+    """点赞、转发按各自权重计入得分。"""
+    # 阅读100 + 评论1×50 + 点赞2×20 + 转发1×100 = 290
+    assert feedback._score(100, 1, 50, likes=2, shares=1,
+                           like_weight=20, share_weight=100) == 290
+    # 不传点赞/转发时退回旧行为
+    assert feedback._score(100, 1, 50) == 150
+
+
 def test_collect_manual_reads_metrics():
     with tempfile.TemporaryDirectory() as base:
-        _make_day(base, "2026-05-20", "T", "r", reads=888, comments=3)
+        _make_day(base, "2026-05-20", "T", "r", reads=888, comments=3,
+                  likes=10, shares=2)
         cfg = {"output_base": base}
         m = feedback.collect_manual("2026-05-20", cfg)
-        assert m == {"reads": 888, "comments": 3}
+        assert m == {"reads": 888, "comments": 3, "likes": 10, "shares": 2}
+
+
+def test_collect_manual_defaults_missing_likes_shares_to_zero():
+    """旧 metrics.json 没有 likes/shares 字段时默认 0，向后兼容。"""
+    with tempfile.TemporaryDirectory() as base:
+        _make_day(base, "2026-05-20", "T", "r", reads=500, comments=1)
+        m = feedback.collect_manual("2026-05-20", {"output_base": base})
+        assert m == {"reads": 500, "comments": 1, "likes": 0, "shares": 0}
 
 
 def test_collect_manual_missing_returns_none():
@@ -56,6 +80,22 @@ def test_aggregate_skips_days_without_metrics_and_sorts_by_score():
         assert recs[0]["title"] == "高分文" and recs[0]["score"] == 450
         assert recs[1]["title"] == "低分文" and recs[1]["score"] == 100
         assert recs[0]["angle"] == "角度B"
+
+
+def test_aggregate_counts_likes_and_shares():
+    """点赞/转发参与打分，能把低阅读但高转发的文章排到前面。"""
+    with tempfile.TemporaryDirectory() as base:
+        # 阅读高但无互动：300
+        _make_day(base, "2026-05-28", "纯阅读", "角度A", reads=300, comments=0)
+        # 阅读低但转发多：50 + 3×100 = 350
+        _make_day(base, "2026-05-29", "高转发", "角度B", reads=50, comments=0,
+                  likes=0, shares=3)
+        recs = feedback._aggregate("2026-05-31", {"output_base": base}, lookback=30,
+                                   comment_weight=50, source="manual",
+                                   like_weight=20, share_weight=100)
+        assert recs[0]["title"] == "高转发" and recs[0]["score"] == 350
+        assert recs[0]["shares"] == 3
+        assert recs[1]["title"] == "纯阅读" and recs[1]["score"] == 300
 
 
 def test_distill_writes_lessons_with_mocked_claude(monkeypatch, tmp_lessons_dir):

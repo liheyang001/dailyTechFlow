@@ -9,8 +9,9 @@
              凭据齐全，缺一不可。凭据补齐前请保持 source=manual。
 
 metrics.json 格式（手动填写）：
-    {"reads": 1234, "comments": 12}
-注：点赞/在看微信没有公开计数接口，本系统只用「阅读 + 评论」两个信号。
+    {"reads": 1234, "comments": 12, "likes": 30, "shares": 5}
+注：likes/shares（点赞、转发）微信无公开计数接口、自动 wechat 采集拉不到，记 0；
+    但手动模式下你能从后台抄进来，会一并纳入打分。旧文件没这两字段则默认 0。
 
 约定 run(date_str, config) -> bool。
 本模块跨天读 output/ 并写 feedback/——已获用户批准突破「模块不跨目录」规则，
@@ -31,9 +32,16 @@ LESSONS_PATH = os.path.join(FEEDBACK_DIR, LESSONS_FILE)
 _WECHAT_API = "https://api.weixin.qq.com"
 
 
-def _score(reads: int, comments: int, comment_weight: float) -> float:
-    """得分 = 阅读 + 评论×权重。评论比阅读稀有，权重把它放大成可比的量级。"""
-    return reads + comments * comment_weight
+def _score(reads: int, comments: int, comment_weight: float,
+           likes: int = 0, shares: int = 0,
+           like_weight: float = 0.0, share_weight: float = 0.0) -> float:
+    """得分 = 阅读 + 评论×权重 + 点赞×权重 + 转发×权重。
+
+    高成本互动比阅读稀有得多，权重把它们放大成可比的量级。成本越高、越能代表真实
+    认可的信号权重越大：转发（要署名转给别人）> 评论（要打字）> 点赞（一键）> 阅读。
+    """
+    return (reads + comments * comment_weight
+            + likes * like_weight + shares * share_weight)
 
 
 def read_lessons() -> str:
@@ -51,7 +59,12 @@ def collect_manual(date_str: str, config: dict) -> dict | None:
         return None
     with open(p, encoding="utf-8") as f:
         m = json.load(f)
-    return {"reads": int(m.get("reads", 0)), "comments": int(m.get("comments", 0))}
+    return {
+        "reads": int(m.get("reads", 0)),
+        "comments": int(m.get("comments", 0)),
+        "likes": int(m.get("likes", 0)),
+        "shares": int(m.get("shares", 0)),
+    }
 
 
 def _wechat_token(app_id: str, app_secret: str) -> str:
@@ -116,7 +129,8 @@ def collect_wechat(date_str: str, config: dict) -> dict | None:
                 comments = 0
             break
 
-    metrics = {"reads": reads, "comments": comments}
+    # 点赞/转发微信数据接口拿不到，记 0；手动模式才有这两个信号。
+    metrics = {"reads": reads, "comments": comments, "likes": 0, "shares": 0}
     with open(os.path.join(config["output_base"], date_str, "metrics.json"), "w", encoding="utf-8") as f:
         json.dump(metrics, f, ensure_ascii=False, indent=2)
     return metrics
@@ -126,8 +140,9 @@ _COLLECTORS = {"manual": collect_manual, "wechat": collect_wechat}
 
 
 def _aggregate(date_str: str, config: dict, lookback: int,
-               comment_weight: float, source: str) -> list:
-    """回看 lookback 天，凑齐每篇文章的 选题 + 阅读 + 评论，算分排名。"""
+               comment_weight: float, source: str,
+               like_weight: float = 0.0, share_weight: float = 0.0) -> list:
+    """回看 lookback 天，凑齐每篇文章的 选题 + 阅读/评论/点赞/转发，算分排名。"""
     out = config["output_base"]
     base = date.fromisoformat(date_str)
     records = []
@@ -148,13 +163,17 @@ def _aggregate(date_str: str, config: dict, lookback: int,
         with open(pick_p, encoding="utf-8") as f:
             pick = json.load(f)
         reads, comments = metrics["reads"], metrics["comments"]
+        likes, shares = metrics.get("likes", 0), metrics.get("shares", 0)
         records.append({
             "date": d,
             "title": pick.get("title", ""),
             "angle": pick.get("reason", ""),
             "reads": reads,
             "comments": comments,
-            "score": round(_score(reads, comments, comment_weight), 1),
+            "likes": likes,
+            "shares": shares,
+            "score": round(_score(reads, comments, comment_weight,
+                                  likes, shares, like_weight, share_weight), 1),
         })
     records.sort(key=lambda r: r["score"], reverse=True)
     return records
@@ -171,13 +190,16 @@ def _distill(records: list, config: dict) -> None:
     """把排名喂给 Claude，总结成给选题/写作用的经验清单，写进 lessons.md。"""
     top = records[:8]
     bottom = records[-5:] if len(records) > 13 else []
-    lines = [f"[高分] {r['score']}分 · 阅读{r['reads']} 评论{r['comments']} · "
-             f"{r['title']} · 角度：{r['angle']}" for r in top]
-    lines += [f"[低分] {r['score']}分 · 阅读{r['reads']} 评论{r['comments']} · "
-              f"{r['title']} · 角度：{r['angle']}" for r in bottom]
+    def _fmt(tag, r):
+        return (f"[{tag}] {r['score']}分 · 阅读{r['reads']} 评论{r['comments']} "
+                f"点赞{r.get('likes', 0)} 转发{r.get('shares', 0)} · "
+                f"{r['title']} · 角度：{r['angle']}")
+    lines = [_fmt("高分", r) for r in top]
+    lines += [_fmt("低分", r) for r in bottom]
     table = "\n".join(lines)
 
-    prompt = f"""你是公众号增长分析师。下面是历史文章的真实表现（按得分排序，得分=阅读+评论×权重）。
+    prompt = f"""你是公众号增长分析师。下面是历史文章的真实表现（按得分排序，
+得分=阅读+评论×权重+点赞×权重+转发×权重，权重越大代表该互动越能反映真实认可）。
 请总结出「什么样的选题和写法更受读者欢迎」，写成给选题编辑和写手看的经验清单。
 
 {table}
@@ -210,6 +232,8 @@ def run(date_str: str, config: dict) -> bool:
     fb = config.get("feedback", {})
     source = fb.get("source", "manual")
     comment_weight = float(fb.get("comment_weight", 50))
+    like_weight = float(fb.get("like_weight", 20))
+    share_weight = float(fb.get("share_weight", 100))
     min_articles = int(fb.get("min_articles", 3))
     lookback = int(fb.get("lookback_days", 30))
 
@@ -219,7 +243,8 @@ def run(date_str: str, config: dict) -> bool:
 
     os.makedirs(FEEDBACK_DIR, exist_ok=True)
 
-    records = _aggregate(date_str, config, lookback, comment_weight, source)
+    records = _aggregate(date_str, config, lookback, comment_weight, source,
+                         like_weight, share_weight)
     _write_history(records)
     print(f"[feedback] 已聚合 {len(records)} 篇有数据文章 → {FEEDBACK_DIR}/{HISTORY_FILE}")
 

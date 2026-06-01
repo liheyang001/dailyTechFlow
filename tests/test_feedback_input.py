@@ -33,7 +33,17 @@ def test_writes_metrics_json():
         rc = fi.main(["1500", "8", "2026-05-20"], config_path=cfg)
         assert rc == 0
         m = json.load(open(os.path.join(out, "2026-05-20", "metrics.json"), encoding="utf-8"))
-        assert m == {"reads": 1500, "comments": 8}
+        assert m == {"reads": 1500, "comments": 8, "likes": 0, "shares": 0}
+
+
+def test_writes_likes_and_shares():
+    with tempfile.TemporaryDirectory() as base:
+        cfg, out = _setup(base, "2026-05-20")
+        rc = fi.main(["1500", "8", "2026-05-20", "--likes", "30", "--shares", "5"],
+                     config_path=cfg)
+        assert rc == 0
+        m = json.load(open(os.path.join(out, "2026-05-20", "metrics.json"), encoding="utf-8"))
+        assert m == {"reads": 1500, "comments": 8, "likes": 30, "shares": 5}
 
 
 def test_negative_rejected():
