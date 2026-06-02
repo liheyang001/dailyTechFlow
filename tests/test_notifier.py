@@ -58,9 +58,14 @@ def test_build_message_attaches_full_html_and_keeps_body_light():
         msg = notifier._build_message(_EC, "2026-05-20", html, "标题X", cover)
 
         atts = [p for p in msg.walk() if p.get_content_disposition() == "attachment"]
-        assert len(atts) == 1
-        assert atts[0].get_filename().endswith(".html")
-        payload = atts[0].get_payload(decode=True).decode("utf-8")
+        names = [a.get_filename() for a in atts]
+        assert "cover.png" in names                       # 封面 PNG 作为独立附件
+        html_atts = [a for a in atts if a.get_filename().endswith(".html")]
+        assert len(html_atts) == 1
+        # 封面附件是真实 PNG 字节
+        png = [a for a in atts if a.get_filename() == "cover.png"][0]
+        assert png.get_payload(decode=True).startswith(b"\x89PNG")
+        payload = html_atts[0].get_payload(decode=True).decode("utf-8")
         assert "正文段落" in payload                       # 文章在附件
         assert "data:image/png;base64," in payload         # 封面也在附件
         # 关键：<meta charset> 必须排在巨大的 base64 封面之前，

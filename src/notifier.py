@@ -14,6 +14,7 @@ import os
 import re
 import smtplib
 import ssl
+from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from html import escape, unescape
@@ -65,6 +66,7 @@ def _article_text(html: str) -> str:
 
 
 _FOOTER = ("完整排版（含封面）见附件 HTML，手机点开即用浏览器渲染。"
+           "封面图 cover.png 也作为附件，可直接保存用作微信文章封面。"
            "审核合格后到「订阅号助手」App 发布。")
 
 
@@ -96,7 +98,14 @@ def _build_message(ec: dict, date_str: str, html: str, title: str,
     body.attach(MIMEText(_body_html(title, text), "html", "utf-8"))
     msg.attach(body)
 
-    # 附件：自包含 HTML（封面内联 + 文章原排版），浏览器打开 100% 还原
+    # 附件1：封面 PNG（可直接保存、用作微信文章封面）
+    if cover_path and os.path.exists(cover_path):
+        with open(cover_path, "rb") as f:
+            img = MIMEImage(f.read(), "png")  # 显式 png，不依赖类型猜测
+        img.add_header("Content-Disposition", "attachment", filename="cover.png")
+        msg.attach(img)
+
+    # 附件2：自包含 HTML（封面内联 + 文章原排版），浏览器打开 100% 还原
     att = MIMEText(_inject_cover(html, cover_path), "html", "utf-8")
     att.add_header("Content-Disposition", "attachment",
                    filename=f"{date_str}_article.html")
