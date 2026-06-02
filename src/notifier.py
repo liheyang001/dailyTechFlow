@@ -121,6 +121,29 @@ def _send(ec: dict, msg: MIMEMultipart) -> None:
         server.send_message(msg)
 
 
+def _write_fallback(output_base: str, date_str: str, title: str,
+                    error: str, cover_path: str = "") -> str:
+    """邮件没发出去时，在当天目录留一张醒目便条：错误 + 成品位置，
+    方便人工去 output 目录取文件手动发布。文章/封面本就已落盘，不会丢。"""
+    day_dir = os.path.join(output_base, date_str)
+    note = os.path.join(day_dir, "EMAIL_FAILED.md")
+    lines = [
+        f"# 邮件发送失败 · {date_str}",
+        "",
+        f"- 标题：{title}",
+        f"- 错误：{error}",
+        "",
+        "邮件没发出，但成品都在本目录，可手动取用发布：",
+        "- 文章：wechat_article.html（浏览器打开或粘进微信）",
+    ]
+    if cover_path and os.path.exists(cover_path):
+        lines.append(f"- 封面：{os.path.basename(cover_path)}")
+    with open(note, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+    print(f"[notifier] 已写失败便条供人工补发：{note}")
+    return note
+
+
 def run(date_str: str, config: dict) -> bool:
     ec = config.get("email", {})
     article_path = os.path.join(config["output_base"], date_str, "wechat_article.html")
@@ -143,6 +166,7 @@ def run(date_str: str, config: dict) -> bool:
         print(f"[notifier] 今日文章已邮至 {ec['recipient']}：{title}")
     except Exception as e:
         print(f"[notifier] 邮件发送失败：{e}")
+        _write_fallback(config["output_base"], date_str, title, str(e), cover_path)
         return False
 
     return True

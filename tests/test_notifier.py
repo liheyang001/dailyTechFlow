@@ -126,6 +126,39 @@ def test_sends_when_configured(monkeypatch):
     assert "今日大新闻" in sent["subject"]
 
 
+def test_send_failure_writes_fallback_note(monkeypatch):
+    """邮件发送失败时落地一张便条（错误 + 成品位置），不丢成品，返回 False。"""
+    class _BoomSMTP:
+        def __init__(self, *a):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def starttls(self, context=None):
+            pass
+
+        def login(self, u, p):
+            pass
+
+        def send_message(self, msg):
+            raise RuntimeError("smtp boom")
+
+    monkeypatch.setattr(notifier.smtplib, "SMTP", _BoomSMTP)
+    with tempfile.TemporaryDirectory() as base:
+        _make_article(base, "2026-05-20")
+        cfg = {"output_base": base, "email": _EC}
+        assert notifier.run("2026-05-20", cfg) is False
+        note = os.path.join(base, "2026-05-20", "EMAIL_FAILED.md")
+        assert os.path.exists(note)
+        content = open(note, encoding="utf-8").read()
+        assert "smtp boom" in content
+        assert "wechat_article.html" in content
+
+
 # ---- 极简 pytest 替身（支持 monkeypatch fixture）----
 class _MonkeyPatch:
     def __init__(self):

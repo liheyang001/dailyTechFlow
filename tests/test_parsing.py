@@ -46,6 +46,24 @@ def test_parse_json_strips_code_fence():
     assert _parse_json('{"index": 1, "reason": "y"}') == {"index": 1, "reason": "y"}
 
 
+def test_parse_json_recovers_from_unescaped_quotes_in_reason():
+    """reason 含未转义引号时仍兜底抽出 index（线上连续两天栽在这）。"""
+    bad = '{"index": 3, "reason": "「220独角兽」这个"踢出局"标题极具冲击力"}'
+    data = _parse_json(bad)
+    assert data["index"] == 3
+    assert "踢出局" in data["reason"]
+
+
+def test_parse_json_raises_when_no_index():
+    """连 index 都抽不到才报错，不静默吞掉坏输出。"""
+    raised = False
+    try:
+        _parse_json("这根本不是 JSON")
+    except Exception:
+        raised = True
+    assert raised
+
+
 if __name__ == "__main__":
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for fn in fns:

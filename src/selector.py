@@ -38,9 +38,26 @@ def _recent_titles(output_base: str, date_str: str, days: int = 7) -> list:
 
 
 def _parse_json(text: str) -> dict:
-    text = re.sub(r"```(?:json)?\s*", "", text)
-    text = re.sub(r"```\s*$", "", text.strip())
-    return json.loads(text.strip())
+    """解析模型返回的 {"index", "reason"}。
+
+    优先标准 JSON；失败则正则兜底——reason 是一句话、常含未转义的引号，
+    会让 json.loads 崩（线上连续两天栽在这），但 index 是整数、最关键，
+    必须拿到：拿到就能选出文章、链路不断；reason 只是附注，尽力抽。
+    """
+    cleaned = re.sub(r"```(?:json)?\s*", "", text)
+    cleaned = re.sub(r"```\s*$", "", cleaned.strip()).strip()
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        pass
+    m = re.search(r'"index"\s*:\s*(\d+)', cleaned)
+    if not m:
+        raise ValueError(f"模型输出里找不到 index：{cleaned[:200]}")
+    data = {"index": int(m.group(1)), "reason": ""}
+    rm = re.search(r'"reason"\s*:\s*"(.*)"', cleaned, re.S)
+    if rm:
+        data["reason"] = rm.group(1).strip()
+    return data
 
 
 def run(date_str: str, config: dict) -> bool:
