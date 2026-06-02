@@ -26,57 +26,42 @@ def test_extract_title():
     assert notifier._extract_title("<p>无h1</p>", "fb") == "fb"
 
 
-def test_cover_block_empty_when_missing():
-    assert notifier._cover_block("") == ""
-    assert notifier._cover_block("/no/such/cover.png") == ""
-
-
-def test_cover_block_inlines_existing_image():
-    with tempfile.TemporaryDirectory() as base:
-        p = os.path.join(base, "cover.png")
-        with open(p, "wb") as f:
-            f.write(b"\x89PNG\r\n fake")
-        block = notifier._cover_block(p)
-        assert block.startswith('<img src="data:image/png;base64,')
-
-
 def test_article_text_strips_tags():
     txt = notifier._article_text('<body><h1>标题</h1><p>第一段</p><p>第二段</p></body>')
     assert "标题" in txt and "第一段" in txt and "第二段" in txt
     assert "<" not in txt  # 标签都去掉了
 
 
-def test_build_message_attaches_full_html_and_keeps_body_light():
-    """完整带封面 HTML 进附件；正文不内嵌大图（杜绝 Gmail 截断）。"""
+def test_build_message_body_is_full_article_cover_attached():
+    """正文 html 直接是完整内联文章（Gmail 直接打开即排版好的文章）；
+    封面只作独立附件、不进正文（不含 base64，避免 102KB 截断）；不再有巨型 html 附件。"""
     with tempfile.TemporaryDirectory() as base:
         cover = os.path.join(base, "cover.png")
         with open(cover, "wb") as f:
             f.write(b"\x89PNG\r\n fake")
-        html = ('<!DOCTYPE html><html><head><meta charset="UTF-8">'
-                '<title>标题X</title></head><body>'
-                '<h1>标题X</h1><p>正文段落</p></body></html>')
+        html = ('<!DOCTYPE html><html><head><meta charset="UTF-8"></head>'
+                '<body style="background:#fff"><h1>标题X</h1>'
+                '<p style="margin:0">正文段落</p></body></html>')
         msg = notifier._build_message(_EC, "2026-05-20", html, "标题X", cover)
 
+        # 附件只有封面 png，没有 html 附件
         atts = [p for p in msg.walk() if p.get_content_disposition() == "attachment"]
-        names = [a.get_filename() for a in atts]
-        assert "cover.png" in names                       # 封面 PNG 作为独立附件
-        html_atts = [a for a in atts if a.get_filename().endswith(".html")]
-        assert len(html_atts) == 1
-        # 封面附件是真实 PNG 字节
-        png = [a for a in atts if a.get_filename() == "cover.png"][0]
-        assert png.get_payload(decode=True).startswith(b"\x89PNG")
-        payload = html_atts[0].get_payload(decode=True).decode("utf-8")
-        assert "正文段落" in payload                       # 文章在附件
-        assert "data:image/png;base64," in payload         # 封面也在附件
-        # 关键：<meta charset> 必须排在巨大的 base64 封面之前，
-        # 否则被挤出浏览器前 1024 字节嗅探窗口 → 中文乱码
-        assert payload.index("charset") < payload.index("base64,")
+        assert [a.get_filename() for a in atts] == ["cover.png"]
+        assert atts[0].get_payload(decode=True).startswith(b"\x89PNG")
 
-        body_parts = [p.get_payload(decode=True).decode("utf-8") for p in msg.walk()
-                      if p.get_content_type() in ("text/plain", "text/html")
-                      and p.get_content_disposition() != "attachment"]
-        assert any("正文段落" in b for b in body_parts)      # 正文有文字预览
-        assert all("base64," not in b for b in body_parts)  # 正文无大图
+        # Gmail 直接打开渲染的正文 html = 完整文章（含正文段落 + 内联样式）
+        body_html = [p.get_payload(decode=True).decode("utf-8") for p in msg.walk()
+                     if p.get_content_type() == "text/html"
+                     and p.get_content_disposition() != "attachment"]
+        assert len(body_html) == 1
+        assert "正文段落" in body_html[0]
+        assert 'style="margin:0"' in body_html[0]          # 内联样式保留
+        assert "base64," not in body_html[0]               # 正文不含封面 base64
+
+        # plain 兜底里有纯文本
+        plain = [p.get_payload(decode=True).decode("utf-8") for p in msg.walk()
+                 if p.get_content_type() == "text/plain"]
+        assert any("正文段落" in b for b in plain)
 
 
 def test_missing_article_returns_false():
