@@ -106,7 +106,7 @@ class TestRun(unittest.TestCase):
             out_file = os.path.join(tmp, "2026-05-27", "news_raw.json")
             with open(out_file, encoding="utf-8") as f:
                 data = json.load(f)
-        self.assertEqual(len(data), 3)  # deduped + capped at 3
+        self.assertEqual(len(data), 3)  # 4 条去重成 3 条，均在上限 8 内
         for item in data:
             self.assertIn("title", item)
             self.assertIn("summary", item)
@@ -144,10 +144,10 @@ class TestRun(unittest.TestCase):
         self.assertFalse(result)
 
     @patch("src.news_fetcher.requests.post")
-    def test_caps_at_three_items(self, mock_post):
+    def test_caps_at_eight_items(self, mock_post):
         many_results = [
             {"title": f"News {i}", "content": f"Summary {i}", "url": f"https://example.com/{i}"}
-            for i in range(8)
+            for i in range(12)
         ]
         mock_post.return_value.json.return_value = {"results": many_results}
 
@@ -158,7 +158,7 @@ class TestRun(unittest.TestCase):
             with open(out_file, encoding="utf-8") as f:
                 data = json.load(f)
 
-        self.assertEqual(len(data), 3)
+        self.assertEqual(len(data), 8)  # fetcher 放宽到上限 8 条，最终由 selector 挑 1 条
 
 
 if __name__ == "__main__":

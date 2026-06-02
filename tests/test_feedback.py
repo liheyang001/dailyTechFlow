@@ -10,7 +10,17 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import pytest
+
 from src import feedback
+
+
+@pytest.fixture
+def tmp_lessons_dir(monkeypatch, tmp_path):
+    """切到 tmp 工作目录并建好 feedback/，让 _distill/read_lessons 读写隔离的 lessons.md，不污染项目。"""
+    monkeypatch.chdir(tmp_path)
+    os.makedirs(feedback.FEEDBACK_DIR, exist_ok=True)
+    return str(tmp_path)
 
 
 def _make_day(base, date_str, title, reason, reads=None, comments=None,
