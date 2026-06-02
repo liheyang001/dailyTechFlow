@@ -3,6 +3,8 @@ import re
 
 import anthropic
 
+from . import wechat_inline
+
 PROMPT_PATH = "prompts/wechat_writer.md"
 TEMPLATE_PATH = "templates/wechat_article.html"
 
@@ -102,6 +104,9 @@ def run(date_str: str, config: dict) -> bool:
     }
     for placeholder, value in replacements.items():
         html = html.replace(placeholder, value)
+
+    # 转成微信安全的全内联样式（去 <style>/class/flex/伪元素），粘贴进微信能保留排版
+    html = wechat_inline.inline(html)
 
     out_path = os.path.join(output_dir, "wechat_article.html")
     with open(out_path, "w", encoding="utf-8") as f:
