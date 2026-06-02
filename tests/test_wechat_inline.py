@@ -84,6 +84,18 @@ def test_full_document_roundtrip():
     assert 'charset="UTF-8"' in out  # meta 保留
 
 
+def test_body_style_not_broken_by_inner_quotes():
+    """body 字体名必须用单引号——style 由 inline 写进 style="..." 双引号里，
+    字体名再用双引号会提前闭合属性、冲垮 body 标签（线上邮件附件就栽在这）。"""
+    out = wi.inline("<body><p>x</p></body>")
+    m = re.search(r"<body\b[^>]*>", out)
+    assert m, "body 标签应存在"
+    tag = m.group(0)
+    assert '"PingFang' not in tag        # 不能有双引号字体名
+    assert "'PingFang SC'" in tag        # 改用单引号
+    assert tag.count('"') == 2           # 只剩外层那一对 style="..."
+
+
 def _run():
     fns = [(n, f) for n, f in globals().items() if n.startswith("test_") and callable(f)]
     passed = 0

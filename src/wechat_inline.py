@@ -18,8 +18,10 @@ _LINE, _CARD = "#E3DBCD", "#FFFFFF"
 
 # 元素默认样式（按标签名套，不管有没有 class）
 TAG_STYLES = {
+    # 字体名用单引号：整段 style 由 inline() 写进 style="..." 双引号里，
+    # 字体名再用双引号会提前闭合 style 属性、冲垮整个 body 标签。
     "body": f"margin:0;background:#E9E2D6;color:{_BODY};line-height:1.9;"
-            'font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;',
+            "font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;",
     "h1": f"font-size:30px;line-height:1.32;color:{_INK};font-weight:800;margin:18px 0 14px;",
     "h2": f"font-size:21px;color:{_INK};font-weight:800;margin:42px 0 6px;",
     "p": "font-size:16px;margin:14px 0;",
