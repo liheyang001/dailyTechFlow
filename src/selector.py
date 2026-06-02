@@ -16,25 +16,30 @@ def _candidates(items: list) -> str:
     return "\n".join(lines)
 
 
-def _recent_titles(output_base: str, date_str: str, days: int = 7) -> list:
-    """读取最近 days 天已写过的选题标题，用于避免连续撞题。"""
+def _recent_picks(output_base: str, date_str: str, days: int = 7) -> list:
+    """读最近 days 天写过的选题（标题 + 角度），用于避免连续撞题。
+
+    带上角度，模型才能从主题内核判断是否撞题，而不只比标题字面——
+    标题措辞不同但内核相同（都在讲「AI 资本集中」）正是字面查重的漏网点。
+    """
     try:
         base = date.fromisoformat(date_str)
     except ValueError:
         return []
-    titles = []
+    picks = []
     for i in range(1, days + 1):
         d = (base - timedelta(days=i)).isoformat()
         p = os.path.join(output_base, d, "pick.json")
         if os.path.exists(p):
             try:
                 with open(p, encoding="utf-8") as f:
-                    t = json.load(f).get("title", "")
-                if t:
-                    titles.append(t)
+                    obj = json.load(f)
+                if obj.get("title"):
+                    picks.append({"title": obj["title"],
+                                  "reason": obj.get("reason", "")})
             except Exception:
                 pass
-    return titles
+    return picks
 
 
 def _parse_json(text: str) -> dict:
@@ -74,12 +79,19 @@ def run(date_str: str, config: dict) -> bool:
         print("[selector] 没有候选新闻")
         return False
 
-    recent = _recent_titles(config["output_base"], date_str)
+    recent = _recent_picks(config["output_base"], date_str)
     avoid_block = ""
     if recent:
+        lines = "\n".join(
+            f"- {r['title']}" + (f"（角度：{r['reason']}）" if r["reason"] else "")
+            for r in recent
+        )
         avoid_block = (
-            "\n\n【最近几天已经写过的主题——请避开，不要再选同一主题或同一事件】\n"
-            + "\n".join(f"- {t}" for t in recent)
+            "\n\n【最近几天已经写过的选题——务必避开，绝不能再选同一主题/事件/核心叙事】\n"
+            f"{lines}\n"
+            "判断撞题要看主题内核而非标题字面：哪怕措辞、公司、数据来源都不同，"
+            "只要讲的是同一件事或同一个核心叙事（例如都在说「AI 资本高度集中」、"
+            "「AI 大裁员」、「AI 泡沫」），就算撞题，必须换一个真正不同的主题或角度。"
         )
 
     # 注入 feedback 模块沉淀的经验：什么样的选题过往阅读/评论表现好
@@ -90,7 +102,10 @@ def run(date_str: str, config: dict) -> bool:
             lessons = f.read().strip()
         if lessons:
             lessons_block = (
-                "\n\n【历史经验——根据过往文章真实阅读/评论总结，选题时务必参考】\n" + lessons
+                "\n\n【历史经验——根据过往文章真实阅读/评论总结，选题时参考】\n" + lessons
+                + "\n（经验是帮你判断什么角度/写法更受欢迎，不是让你天天选同一类主题。"
+                "即便某主题贴合历史高分特征，只要和最近几天撞了内核，也要换"
+                "——多样性优先于贴高分。）"
             )
 
     client = anthropic.Anthropic(api_key=config["anthropic"]["api_key"])
