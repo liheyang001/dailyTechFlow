@@ -32,8 +32,9 @@ def test_article_text_strips_tags():
     assert "<" not in txt  # 标签都去掉了
 
 
-def test_build_message_article_in_attachment_body_is_preview():
-    """完整带 <style> 文章放 HTML 附件（手机点开附件渲染）；正文只是轻量预览，不铺整篇。"""
+def test_build_message_article_as_source_txt_for_copy():
+    """文章作 .txt 源码附件（text/plain，手机点开即显示带 <style> 源码、可整段复制）；
+    不用 .html 以免手机 render 成页面。正文仍是轻量预览。"""
     with tempfile.TemporaryDirectory() as base:
         cover = os.path.join(base, "cover.png")
         with open(cover, "wb") as f:
@@ -43,24 +44,22 @@ def test_build_message_article_in_attachment_body_is_preview():
                 '<body><h1>标题X</h1><p>正文段落甲</p></body></html>')
         msg = notifier._build_message(_EC, "2026-05-20", html, "标题X", cover)
 
-        # 附件：封面 png + 完整文章 html（带 <style> 原样进附件）
         atts = [p for p in msg.walk() if p.get_content_disposition() == "attachment"]
         names = [a.get_filename() for a in atts]
         assert "cover.png" in names
-        html_atts = [a for a in atts
-                     if a.get_filename() and a.get_filename().endswith(".html")]
-        assert len(html_atts) == 1
-        att_html = html_atts[0].get_payload(decode=True).decode("utf-8")
-        assert "正文段落甲" in att_html
-        assert "<style" in att_html                 # 带 <style> 原样进附件
+        # 文章作 .txt 源码附件、text/plain（点开显示源码而非 render）
+        txt = [a for a in atts if a.get_filename() and a.get_filename().endswith(".txt")]
+        assert len(txt) == 1
+        assert txt[0].get_content_type() == "text/plain"
+        src = txt[0].get_payload(decode=True).decode("utf-8")
+        assert "<style" in src and "正文段落甲" in src    # 带 <style> 源码完整可复制
+        assert not any(n and n.endswith(".html") for n in names)  # 无 .html 附件（不 render）
 
-        # 正文 html = 轻量预览，不是整篇带样式文章
+        # 正文仍是轻量预览
         body_html = [p.get_payload(decode=True).decode("utf-8") for p in msg.walk()
                      if p.get_content_type() == "text/html"
                      and p.get_content_disposition() != "attachment"]
-        assert len(body_html) == 1
-        assert "预览" in body_html[0]
-        assert "<style" not in body_html[0]
+        assert len(body_html) == 1 and "预览" in body_html[0]
 
 
 def test_missing_article_returns_false():

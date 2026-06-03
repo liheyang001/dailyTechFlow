@@ -40,9 +40,9 @@ def _article_text(html: str) -> str:
     return "\n".join(out).strip()
 
 
-_FOOTER = ("完整排版文章见附件 HTML，手机点开附件即用浏览器渲染、排版还原。"
-           "封面 cover.png 也在附件，可保存用作微信封面。"
-           "审核合格后到「订阅号助手」App 发布。")
+_FOOTER = ("文章源码见附件 .txt，手机点开即显示带 <style> 的 HTML，"
+           "可整段复制粘贴到公众号后台/排版工具、保留排版。"
+           "封面 cover.png 也在附件。审核合格后发布。")
 
 
 def _preview_html(title: str, text: str) -> str:
@@ -80,11 +80,12 @@ def _build_message(ec: dict, date_str: str, html: str, title: str,
         img.add_header("Content-Disposition", "attachment", filename="cover.png")
         msg.attach(img)
 
-    # 文章 HTML 附件：供下载/浏览器打开/存档（正文已含完整文章，这里供留存与离线用）
-    att = MIMEText(html, "html", "utf-8")
-    att.add_header("Content-Disposition", "attachment",
-                   filename=f"{date_str}_article.html")
-    msg.attach(att)
+    # 文章源码附件：用 .txt + text/plain，手机点开直接显示带 <style> 的 HTML 源码，
+    # 可整段复制粘贴到公众号后台/排版工具、保留排版（用 .html 会被手机 render 成页面）
+    src = MIMEText(html, "plain", "utf-8")
+    src.add_header("Content-Disposition", "attachment",
+                   filename=f"{date_str}_article_src.txt")
+    msg.attach(src)
     return msg
 
 
