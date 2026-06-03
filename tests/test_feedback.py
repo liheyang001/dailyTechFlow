@@ -108,6 +108,31 @@ def test_aggregate_counts_likes_and_shares():
         assert recs[1]["title"] == "纯阅读" and recs[1]["score"] == 300
 
 
+def test_aggregate_uses_published_chinese_headline():
+    """学习用读者真正看到的中文发布标题（h1），源英文标题仍保留可追溯。"""
+    with tempfile.TemporaryDirectory() as base:
+        _make_day(base, "2026-05-29", "PitchBook: 220 Fallen Unicorns", "AI资本集中",
+                  reads=578, comments=0, likes=5, shares=65)
+        with open(os.path.join(base, "2026-05-29", "wechat_article.html"),
+                  "w", encoding="utf-8") as f:
+            f.write('<html><body><h1 class="title">220只独角兽被AI热潮踢出局</h1>'
+                    '<p>正文</p></body></html>')
+        recs = feedback._aggregate("2026-05-31", {"output_base": base}, lookback=30,
+                                   comment_weight=50, source="manual",
+                                   like_weight=20, share_weight=100)
+        assert recs[0]["headline"] == "220只独角兽被AI热潮踢出局"
+        assert recs[0]["title"] == "PitchBook: 220 Fallen Unicorns"  # 源标题可追溯
+
+
+def test_aggregate_headline_falls_back_to_source_title():
+    """没有 wechat_article.html 时，headline 回退到 pick 源标题，不崩。"""
+    with tempfile.TemporaryDirectory() as base:
+        _make_day(base, "2026-05-29", "源标题", "角度", reads=100, comments=0)
+        recs = feedback._aggregate("2026-05-31", {"output_base": base}, lookback=30,
+                                   comment_weight=50, source="manual")
+        assert recs[0]["headline"] == "源标题"
+
+
 def test_distill_writes_lessons_with_mocked_claude(monkeypatch, tmp_lessons_dir):
     """_distill 应把 Claude 返回写进 lessons.md，且不真的打 API。"""
     class _FakeMsg:

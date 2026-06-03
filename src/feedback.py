@@ -19,6 +19,7 @@ metrics.json 格式（手动填写）：
 """
 import json
 import os
+import re
 import urllib.request
 from datetime import date, timedelta
 
@@ -42,6 +43,23 @@ def _score(reads: int, comments: int, comment_weight: float,
     """
     return (reads + comments * comment_weight
             + likes * like_weight + shares * share_weight)
+
+
+def _published_title(output_base: str, date_str: str) -> str:
+    """从当天 wechat_article.html 的 <h1> 取真正发出去的中文标题；取不到返回空串。
+
+    学习要学读者真正看到、决定点不点的那个中文标题，而非 pick.json 里的英文源标题
+    ——标题正是阅读量的主要胜负手，学错对象等于白学。
+    """
+    p = os.path.join(output_base, date_str, "wechat_article.html")
+    if not os.path.exists(p):
+        return ""
+    try:
+        html = open(p, encoding="utf-8").read()
+    except Exception:
+        return ""
+    m = re.search(r"<h1[^>]*>(.*?)</h1>", html, re.S)
+    return re.sub(r"<[^>]+>", "", m.group(1)).strip() if m else ""
 
 
 def read_lessons() -> str:
@@ -167,6 +185,7 @@ def _aggregate(date_str: str, config: dict, lookback: int,
         records.append({
             "date": d,
             "title": pick.get("title", ""),
+            "headline": _published_title(out, d) or pick.get("title", ""),
             "angle": pick.get("reason", ""),
             "reads": reads,
             "comments": comments,
@@ -191,9 +210,10 @@ def _distill(records: list, config: dict) -> None:
     top = records[:8]
     bottom = records[-5:] if len(records) > 13 else []
     def _fmt(tag, r):
+        name = r.get("headline") or r.get("title", "")
         return (f"[{tag}] {r['score']}分 · 阅读{r['reads']} 评论{r['comments']} "
                 f"点赞{r.get('likes', 0)} 转发{r.get('shares', 0)} · "
-                f"{r['title']} · 角度：{r['angle']}")
+                f"{name} · 角度：{r['angle']}")
     lines = [_fmt("高分", r) for r in top]
     lines += [_fmt("低分", r) for r in bottom]
     table = "\n".join(lines)
