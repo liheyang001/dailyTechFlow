@@ -11,7 +11,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from PIL import Image
 
-from src.image_generator import W, H, _article_text, _parse_json, _compose
+from src.image_generator import (
+    W, H, _article_text, _article_category, _parse_json, _compose,
+)
 
 
 class TestArticleText(unittest.TestCase):
@@ -26,6 +28,15 @@ class TestArticleText(unittest.TestCase):
     def test_no_title_returns_empty(self):
         title, _ = _article_text("<p>无标题</p>")
         self.assertEqual(title, "")
+
+
+class TestArticleCategory(unittest.TestCase):
+    def test_extracts_kicker_category(self):
+        html = '<span class="kicker">AI · 行业观察</span><h1>标题</h1>'
+        self.assertEqual(_article_category(html), "AI · 行业观察")
+
+    def test_missing_kicker_returns_empty(self):
+        self.assertEqual(_article_category("<h1>标题</h1>"), "")
 
 
 class TestParseJson(unittest.TestCase):

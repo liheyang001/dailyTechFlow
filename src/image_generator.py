@@ -36,6 +36,14 @@ def _article_text(html: str) -> tuple:
     return title, body[:2500]
 
 
+def _article_category(html: str) -> str:
+    """取文章里已定的分类标签（<span class="kicker">）。封面复用它，
+    而不是让 Claude 另起一次提炼——否则两边各编各的，会出现封面「商业观察」、
+    文章「行业观察」这种不一致。"""
+    m = re.search(r'<span class="kicker">(.*?)</span>', html, re.S)
+    return re.sub(r"<[^>]+>", "", m.group(1)).strip() if m else ""
+
+
 def _parse_json(text: str) -> dict:
     text = re.sub(r"```(?:json)?\s*", "", text)
     text = re.sub(r"```\s*$", "", text.strip())
@@ -149,10 +157,15 @@ def run(date_str: str, config: dict) -> bool:
 
     try:
         with open(article_path, encoding="utf-8") as f:
-            title, body = _article_text(f.read())
+            html = f.read()
+        title, body = _article_text(html)
 
         client = anthropic.Anthropic(api_key=config["anthropic"]["api_key"])
         copy = _distill_copy(client, config["anthropic"]["model"], title, body)
+        # 封面分类强制对齐文章已定的分类标签，避免两边各编各的不一致
+        cat = _article_category(html)
+        if cat:
+            copy["category"] = cat
         print(f"[image_generator] 封面文案：{copy.get('title')} / {copy.get('data')}")
 
         bg_path = os.path.join(output_dir, "_cover_bg.png")
