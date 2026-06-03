@@ -4,7 +4,12 @@ import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
-from src.news_fetcher import run, _fetch_tavily, _fetch_brave, _deduplicate
+import datetime
+
+from src.news_fetcher import (
+    run, _fetch_tavily, _fetch_brave, _deduplicate, _cap_per_domain,
+    _pick_query, _QUERIES,
+)
 
 
 def _make_config(output_base: str) -> dict:
@@ -95,8 +100,15 @@ class TestFetchBrave(unittest.TestCase):
 class TestRun(unittest.TestCase):
     @patch("src.news_fetcher.requests.post")
     def test_tavily_success_saves_json(self, mock_post):
+        # 3 个不同域名的具体文章 + 1 条重复 URL：去重成 3 条，均在限流/上限内
+        raw = {"results": [
+            {"title": "News A", "content": "S", "url": "https://a.com/tech/news-a"},
+            {"title": "News B", "content": "S", "url": "https://b.com/tech/news-b"},
+            {"title": "News C", "content": "S", "url": "https://c.com/tech/news-c"},
+            {"title": "News D", "content": "S", "url": "https://a.com/tech/news-a"},  # dup
+        ]}
         mock_resp = MagicMock()
-        mock_resp.json.return_value = TAVILY_RAW
+        mock_resp.json.return_value = raw
         mock_post.return_value = mock_resp
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -145,8 +157,10 @@ class TestRun(unittest.TestCase):
 
     @patch("src.news_fetcher.requests.post")
     def test_caps_at_eight_items(self, mock_post):
+        # 12 个不同域名的具体文章 → 限流不削，最终由总上限 8 截断
         many_results = [
-            {"title": f"News {i}", "content": f"Summary {i}", "url": f"https://example.com/{i}"}
+            {"title": f"News {i}", "content": f"Summary {i}",
+             "url": f"https://s{i}.com/tech/news-{i}"}
             for i in range(12)
         ]
         mock_post.return_value.json.return_value = {"results": many_results}
@@ -159,6 +173,53 @@ class TestRun(unittest.TestCase):
                 data = json.load(f)
 
         self.assertEqual(len(data), 8)  # fetcher 放宽到上限 8 条，最终由 selector 挑 1 条
+
+    @patch("src.news_fetcher.requests.post")
+    def test_caps_per_domain(self, mock_post):
+        # 6 篇同域名文章 → 限流到每域名最多 2 条，防止单一信源霸榜
+        same = [
+            {"title": f"News {i}", "content": f"S{i}",
+             "url": f"https://same.com/tech/news-{i}"}
+            for i in range(6)
+        ]
+        mock_post.return_value.json.return_value = {"results": same}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            config = _make_config(tmp)
+            run("2026-05-27", config)
+            out_file = os.path.join(tmp, "2026-05-27", "news_raw.json")
+            with open(out_file, encoding="utf-8") as f:
+                data = json.load(f)
+
+        self.assertEqual(len(data), 2)
+        self.assertTrue(all(it["source"] == "same.com" for it in data))
+
+
+class TestCapPerDomain(unittest.TestCase):
+    def test_keeps_at_most_n_per_domain(self):
+        items = [
+            {"source": "x.com", "url": "https://x.com/1"},
+            {"source": "x.com", "url": "https://x.com/2"},
+            {"source": "x.com", "url": "https://x.com/3"},
+            {"source": "y.com", "url": "https://y.com/1"},
+        ]
+        capped = _cap_per_domain(items, n=2)
+        self.assertEqual(len(capped), 3)  # x 留 2、y 留 1
+        self.assertEqual(sum(1 for i in capped if i["source"] == "x.com"), 2)
+
+
+class TestPickQuery(unittest.TestCase):
+    def test_deterministic_for_same_date(self):
+        self.assertEqual(_pick_query("2026-06-01"), _pick_query("2026-06-01"))
+
+    def test_rotation_covers_all_within_one_cycle(self):
+        start = datetime.date(2026, 6, 1)
+        days = [(start + datetime.timedelta(days=i)).isoformat()
+                for i in range(len(_QUERIES))]
+        self.assertEqual(len({_pick_query(d) for d in days}), len(_QUERIES))
+
+    def test_bad_date_falls_back(self):
+        self.assertIn(_pick_query("not-a-date"), _QUERIES)
 
 
 if __name__ == "__main__":

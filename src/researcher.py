@@ -1,8 +1,16 @@
 import json
 import os
 import re
+from urllib.parse import urlparse
 
 import requests
+
+
+def _domain(url: str) -> str:
+    try:
+        return urlparse(url or "").hostname or ""
+    except Exception:
+        return ""
 
 
 def _extract(url: str, api_key: str) -> str:
@@ -62,8 +70,12 @@ def run(date_str: str, config: dict) -> bool:
     sources = []
     try:
         sources = _search_fulltext(pick["title"], api_key)
-        sources = [s for s in sources if s.get("url") != pick["url"]]
-        print(f"[researcher] 多源报道 {len(sources)} 篇")
+        # 剔除与选中文章同域名的来源：否则选了 PitchBook 又只搜回 PitchBook，
+        # 多源退化成单一信源的回声室，凑不出真正可交叉核对的不同视角
+        pick_dom = _domain(pick["url"])
+        sources = [s for s in sources
+                   if _domain(s.get("url", "")) and _domain(s.get("url", "")) != pick_dom]
+        print(f"[researcher] 多源报道 {len(sources)} 篇（已去同域名回声）")
     except Exception as e:
         print(f"[researcher] 多源搜索失败：{e}")
 
