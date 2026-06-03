@@ -16,7 +16,7 @@ import ssl
 from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from html import unescape
+from html import escape, unescape
 
 
 def _extract_title(html: str, fallback: str) -> str:
@@ -40,9 +40,23 @@ def _article_text(html: str) -> str:
     return "\n".join(out).strip()
 
 
-_FOOTER = ("以上为完整文章（Gmail 直接查看即可）。"
-           "附件含文章 HTML 与封面 cover.png，可下载存档、浏览器打开或用作微信封面。"
+_FOOTER = ("完整排版文章见附件 HTML，手机点开附件即用浏览器渲染、排版还原。"
+           "封面 cover.png 也在附件，可保存用作微信封面。"
            "审核合格后到「订阅号助手」App 发布。")
+
+
+def _preview_html(title: str, text: str) -> str:
+    """邮件正文轻量预览：标题 + 引导语 + 纯文本正文。完整带样式文章看附件。"""
+    paras = "".join(f'<p style="margin:0 0 10px;line-height:1.7">{escape(p)}</p>'
+                    for p in text.split("\n") if p.strip())
+    return (
+        '<div style="max-width:600px;margin:0 auto;color:#1f1b16;font-size:15px;'
+        'font-family:-apple-system,Segoe UI,Roboto,sans-serif">'
+        f'<h2 style="font-size:20px;line-height:1.4;margin:0 0 6px">{escape(title)}</h2>'
+        '<p style="color:#8a8170;font-size:13px;margin:0 0 16px">'
+        '完整排版见附件 HTML，手机点开附件查看；以下仅纯文本预览：</p>'
+        f'{paras}</div>'
+    )
 
 
 def _build_message(ec: dict, date_str: str, html: str, title: str,
@@ -52,13 +66,11 @@ def _build_message(ec: dict, date_str: str, html: str, title: str,
     msg["To"] = ec["recipient"]
     msg["Subject"] = f"[DailyTechFlow] 今日文章待审 · {date_str}｜{title}"
 
-    # 正文：纯文本兜底 + 完整内联文章 HTML。
-    # 内联版无 <style> 块（Gmail 不删）、不含封面 base64（不超 102KB），
-    # Gmail 直接打开就是排版好的文章，无需再点开附件。
+    # 正文：轻量预览（纯文本 + 简短 html）；完整带样式文章放附件供手机点开渲染。
     text = _article_text(html)
     body = MIMEMultipart("alternative")
     body.attach(MIMEText(f"{title}\n\n{text}\n\n—— {_FOOTER}", "plain", "utf-8"))
-    body.attach(MIMEText(html, "html", "utf-8"))
+    body.attach(MIMEText(_preview_html(title, text), "html", "utf-8"))
     msg.attach(body)
 
     # 封面 PNG 作为附件，可保存用作微信文章封面

@@ -32,39 +32,35 @@ def test_article_text_strips_tags():
     assert "<" not in txt  # 标签都去掉了
 
 
-def test_build_message_body_is_full_article_cover_attached():
-    """正文 html 直接是完整内联文章（Gmail 直接打开即排版好的文章）；
-    封面只作独立附件、不进正文（不含 base64，避免 102KB 截断）；不再有巨型 html 附件。"""
+def test_build_message_article_in_attachment_body_is_preview():
+    """完整带 <style> 文章放 HTML 附件（手机点开附件渲染）；正文只是轻量预览，不铺整篇。"""
     with tempfile.TemporaryDirectory() as base:
         cover = os.path.join(base, "cover.png")
         with open(cover, "wb") as f:
             f.write(b"\x89PNG\r\n fake")
-        html = ('<!DOCTYPE html><html><head><meta charset="UTF-8"></head>'
-                '<body style="background:#fff"><h1>标题X</h1>'
-                '<p style="margin:0">正文段落</p></body></html>')
+        html = ('<!DOCTYPE html><html><head><meta charset="UTF-8">'
+                '<style>.x{color:red}</style></head>'
+                '<body><h1>标题X</h1><p>正文段落甲</p></body></html>')
         msg = notifier._build_message(_EC, "2026-05-20", html, "标题X", cover)
 
-        # 附件含封面 png + 文章 html（你打开附件用）
+        # 附件：封面 png + 完整文章 html（带 <style> 原样进附件）
         atts = [p for p in msg.walk() if p.get_content_disposition() == "attachment"]
         names = [a.get_filename() for a in atts]
         assert "cover.png" in names
-        assert any(n and n.endswith(".html") for n in names)
-        png = [a for a in atts if a.get_filename() == "cover.png"][0]
-        assert png.get_payload(decode=True).startswith(b"\x89PNG")
+        html_atts = [a for a in atts
+                     if a.get_filename() and a.get_filename().endswith(".html")]
+        assert len(html_atts) == 1
+        att_html = html_atts[0].get_payload(decode=True).decode("utf-8")
+        assert "正文段落甲" in att_html
+        assert "<style" in att_html                 # 带 <style> 原样进附件
 
-        # Gmail 直接打开渲染的正文 html = 完整文章（含正文段落 + 内联样式）
+        # 正文 html = 轻量预览，不是整篇带样式文章
         body_html = [p.get_payload(decode=True).decode("utf-8") for p in msg.walk()
                      if p.get_content_type() == "text/html"
                      and p.get_content_disposition() != "attachment"]
         assert len(body_html) == 1
-        assert "正文段落" in body_html[0]
-        assert 'style="margin:0"' in body_html[0]          # 内联样式保留
-        assert "base64," not in body_html[0]               # 正文不含封面 base64
-
-        # plain 兜底里有纯文本
-        plain = [p.get_payload(decode=True).decode("utf-8") for p in msg.walk()
-                 if p.get_content_type() == "text/plain"]
-        assert any("正文段落" in b for b in plain)
+        assert "预览" in body_html[0]
+        assert "<style" not in body_html[0]
 
 
 def test_missing_article_returns_false():
