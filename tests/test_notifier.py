@@ -32,9 +32,9 @@ def test_article_text_strips_tags():
     assert "<" not in txt  # 标签都去掉了
 
 
-def test_build_message_article_as_source_txt_for_copy():
-    """文章作 .txt 源码附件（text/plain，手机点开即显示带 <style> 源码、可整段复制）；
-    不用 .html 以免手机 render 成页面。正文仍是轻量预览。"""
+def test_build_message_article_html_attachment_for_render_copy():
+    """文章作 .html 附件（text/html，浏览器打开渲染、全选复制即富文本可粘贴保留排版）；
+    带 <style> 原样进附件；正文仍是轻量预览。"""
     with tempfile.TemporaryDirectory() as base:
         cover = os.path.join(base, "cover.png")
         with open(cover, "wb") as f:
@@ -47,13 +47,13 @@ def test_build_message_article_as_source_txt_for_copy():
         atts = [p for p in msg.walk() if p.get_content_disposition() == "attachment"]
         names = [a.get_filename() for a in atts]
         assert "cover.png" in names
-        # 文章作 .txt 源码附件、text/plain（点开显示源码而非 render）
-        txt = [a for a in atts if a.get_filename() and a.get_filename().endswith(".txt")]
-        assert len(txt) == 1
-        assert txt[0].get_content_type() == "text/plain"
-        src = txt[0].get_payload(decode=True).decode("utf-8")
-        assert "<style" in src and "正文段落甲" in src    # 带 <style> 源码完整可复制
-        assert not any(n and n.endswith(".html") for n in names)  # 无 .html 附件（不 render）
+        # 文章作 .html 附件、text/html（浏览器打开渲染）
+        html_atts = [a for a in atts
+                     if a.get_filename() and a.get_filename().endswith(".html")]
+        assert len(html_atts) == 1
+        assert html_atts[0].get_content_type() == "text/html"
+        att_html = html_atts[0].get_payload(decode=True).decode("utf-8")
+        assert "<style" in att_html and "正文段落甲" in att_html
 
         # 正文仍是轻量预览
         body_html = [p.get_payload(decode=True).decode("utf-8") for p in msg.walk()

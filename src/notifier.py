@@ -40,9 +40,10 @@ def _article_text(html: str) -> str:
     return "\n".join(out).strip()
 
 
-_FOOTER = ("文章源码见附件 .txt，手机点开即显示带 <style> 的 HTML，"
-           "可整段复制粘贴到公众号后台/排版工具、保留排版。"
-           "封面 cover.png 也在附件。审核合格后发布。")
+_FOOTER = ("发布方法：用浏览器打开附件 HTML（会渲染成排版页面）→ 在页面里全选复制 → "
+           "粘进公众号后台/排版工具，排版即保留。"
+           "关键：复制渲染后的页面，不是复制源码（粘源码只会显示代码、不渲染）。"
+           "封面 cover.png 也在附件。")
 
 
 def _preview_html(title: str, text: str) -> str:
@@ -80,12 +81,13 @@ def _build_message(ec: dict, date_str: str, html: str, title: str,
         img.add_header("Content-Disposition", "attachment", filename="cover.png")
         msg.attach(img)
 
-    # 文章源码附件：用 .txt + text/plain，手机点开直接显示带 <style> 的 HTML 源码，
-    # 可整段复制粘贴到公众号后台/排版工具、保留排版（用 .html 会被手机 render 成页面）
-    src = MIMEText(html, "plain", "utf-8")
-    src.add_header("Content-Disposition", "attachment",
-                   filename=f"{date_str}_article_src.txt")
-    msg.attach(src)
+    # 文章 HTML 附件：浏览器打开会 render 成排版页面，在页面里全选复制即得富文本，
+    # 粘进公众号后台/排版工具就保留排版——这是 6/2 验证过的发布路径。
+    # 关键：复制的是渲染后的页面，不是源码；粘源码进编辑器只会显示代码、不渲染。
+    att = MIMEText(html, "html", "utf-8")
+    att.add_header("Content-Disposition", "attachment",
+                   filename=f"{date_str}_article.html")
+    msg.attach(att)
     return msg
 
 
