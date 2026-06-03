@@ -6,12 +6,16 @@ from datetime import date, timedelta
 import anthropic
 
 
+_TIER_LABEL = {1: "一手/权威", 2: "常规", 3: "二手转载"}
+
+
 def _candidates(items: list) -> str:
     lines = []
     for i, it in enumerate(items, 1):
+        tier = _TIER_LABEL.get(it.get("tier", 2), "常规")
         lines.append(f"{i}. 标题：{it['title']}")
         lines.append(f"   摘要：{it['summary']}")
-        lines.append(f"   来源：{it['source']}")
+        lines.append(f"   来源：{it['source']}（可信度：{tier}）")
         lines.append("")
     return "\n".join(lines)
 
@@ -116,6 +120,7 @@ def run(date_str: str, config: dict) -> bool:
 2. 不要重复——避开最近几天已经写过的主题/事件（见下方清单），保持每天选题新鲜。哪怕某条很爆，但和近期写过的是同一件事，也要换一条。
 3. 行业影响力——能改变行业格局、影响很多人，技术/产品从业者真正关心。
 4. 数据（加分项）——若几条都够爆，优先选自带可对比数字（融资/估值/跑分/份额/增长率等）、能做出数据对比图的那条。但这只是加分，绝不为了数据牺牲内容质量。
+5. 信源可信度——每条都标了「可信度」。优先选「一手/权威」来源；「二手转载」（内容农场、聚合站、社交转发）除非是别处没有的独家猛料，否则别当主稿选——二手货的数字常被加工，从源头就不可靠。
 
 候选新闻：
 {_candidates(items)}{avoid_block}{lessons_block}

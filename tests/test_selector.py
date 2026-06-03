@@ -9,7 +9,7 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.selector import _recent_picks
+from src.selector import _recent_picks, _candidates
 
 
 def _make_pick(base, date_str, title, reason):
@@ -47,6 +47,17 @@ def test_recent_picks_excludes_today_itself():
 
 def test_recent_picks_bad_date_returns_empty():
     assert _recent_picks("/nope", "not-a-date") == []
+
+
+def test_candidates_shows_credibility_tier():
+    """候选列表把信源可信度档位喂给模型，便于优先一手、降权二手转载。"""
+    out = _candidates([{"title": "T", "summary": "S", "source": "openai.com", "tier": 1}])
+    assert "可信度" in out and "一手/权威" in out
+
+
+def test_candidates_defaults_tier_when_missing():
+    out = _candidates([{"title": "T", "summary": "S", "source": "x.com"}])
+    assert "常规" in out  # 无 tier 字段时默认「常规」，不崩
 
 
 if __name__ == "__main__":

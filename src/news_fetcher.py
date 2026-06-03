@@ -29,6 +29,41 @@ def _pick_query(date_str: str) -> str:
     return _QUERIES[n % len(_QUERIES)]
 
 
+# 读者定位：英文为主 + 补国内 AI 大事。每天在轮换的英文 query 之外，额外搜一条中文，
+# 把国内大模型/科技公司的大新闻（字节、阿里、智谱、MiniMax、Kimi、DeepSeek 等）并入池。
+_CN_QUERY = "中国 AI 大模型与科技公司最新重大新闻"
+
+# 信源分层：一手官方 + 一线媒体 + 国内一线 → tier1（优先）；内容农场/聚合/社交 → tier3（降权）。
+# 子串匹配域名；命中即归档，其余默认 tier2。给 selector 一个可信度信号，别拿二手转载当主稿。
+_TIER1 = (
+    "openai.com", "anthropic.com", "blog.google", "deepmind", "meta.com",
+    "microsoft.com", "apple.com", "nvidia.com", "arxiv.org", "github.com",
+    "huggingface.co", "reuters.com", "techcrunch.com", "theverge.com",
+    "arstechnica.com", "wired.com", "bloomberg.com", "wsj.com", "ft.com",
+    "nytimes.com", "technologyreview.com", "theinformation.com",
+    "venturebeat.com", "axios.com", "cnbc.com",
+    "36kr.com", "qbitai.com", "jiqizhixin.com", "ithome.com", "leiphone.com",
+    "pingwest.com", "geekpark.net", "thepaper.cn", "sspai.com",
+)
+_TIER3 = (
+    "blockchain.news", "tradersunion", "investordaily", "digitalapplied",
+    "privatemarketsinsights", "towardsai", "wolfstreet", "benzinga",
+    "seekingalpha", "fool.com", "linkedin.com", "instagram.com",
+    "facebook.com", "twitter.com", "reddit.com", "medium.com",
+    "substack.com", "yahoo.com", "msn.com", "news.google", "flipboard",
+)
+
+
+def _source_tier(domain: str) -> int:
+    """信源可信度档：1 一手/权威、2 常规、3 二手转载/内容农场。"""
+    d = (domain or "").lower()
+    if any(k in d for k in _TIER1):
+        return 1
+    if any(k in d for k in _TIER3):
+        return 3
+    return 2
+
+
 def _domain(url: str) -> str:
     try:
         return urlparse(url).hostname or ""
@@ -139,11 +174,25 @@ def run(date_str: str, config: dict) -> bool:
             print(f"[news_fetcher] Brave also failed: {e2}")
             return False
 
-    print(f"[news_fetcher] 今日查询词：{query}")
+    # 补国内 AI 大事：额外一条中文搜索并入候选池。best-effort，失败不影响主流程
+    try:
+        cn = _fetch_tavily(config, _CN_QUERY)
+        items += cn
+        print(f"[news_fetcher] 国内补充 {len(cn)} 条")
+    except Exception as e:
+        print(f"[news_fetcher] 国内补充搜索失败（忽略）：{e}")
+
+    print(f"[news_fetcher] 今日查询词：{query} ＋ 国内补充")
     items = _deduplicate(items)
-    articles = [it for it in items if _is_article(it["url"])]
-    # 过滤后若太少，退回未过滤结果兜底，避免空手；再按来源限流去掉单一信源霸榜
-    items = _cap_per_domain(articles or items)[:8]
+    for it in items:
+        it["tier"] = _source_tier(it["source"])
+    # 过滤聚合页/栏目首页，只留具体文章；一手/权威源（tier1，含 36kr/量子位等国内一线，
+    # URL 常是数字 ID，过不了英文 slug 规则）直接放行
+    articles = [it for it in items if _is_article(it["url"]) or it["tier"] == 1]
+    # 过滤后若太少则退回兜底；按 tier 排序让高质先进池，再限流去单一信源霸榜，截断到 8
+    pool = articles or items
+    pool.sort(key=lambda it: it["tier"])
+    items = _cap_per_domain(pool)[:8]
     if not items:
         print("[news_fetcher] No results found")
         return False

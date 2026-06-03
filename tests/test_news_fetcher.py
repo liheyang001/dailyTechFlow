@@ -8,8 +8,14 @@ import datetime
 
 from src.news_fetcher import (
     run, _fetch_tavily, _fetch_brave, _deduplicate, _cap_per_domain,
-    _pick_query, _QUERIES,
+    _pick_query, _QUERIES, _source_tier,
 )
+
+
+def _resp(payload):
+    m = MagicMock()
+    m.json.return_value = payload
+    return m
 
 
 def _make_config(output_base: str) -> dict:
@@ -220,6 +226,73 @@ class TestPickQuery(unittest.TestCase):
 
     def test_bad_date_falls_back(self):
         self.assertIn(_pick_query("not-a-date"), _QUERIES)
+
+
+class TestSourceTier(unittest.TestCase):
+    def test_first_party_and_authority_are_tier1(self):
+        self.assertEqual(_source_tier("openai.com"), 1)
+        self.assertEqual(_source_tier("www.reuters.com"), 1)
+        self.assertEqual(_source_tier("36kr.com"), 1)  # 国内一线
+
+    def test_content_farms_and_social_are_tier3(self):
+        self.assertEqual(_source_tier("blockchain.news"), 3)
+        self.assertEqual(_source_tier("finance.yahoo.com"), 3)
+        self.assertEqual(_source_tier("www.linkedin.com"), 3)
+
+    def test_unknown_defaults_to_tier2(self):
+        self.assertEqual(_source_tier("some-random-blog.io"), 2)
+
+
+class TestSupplementAndTiering(unittest.TestCase):
+    @patch("src.news_fetcher.requests.post")
+    def test_cn_supplement_merges_and_tier1_bypasses_slug_filter(self, mock_post):
+        # 英文主搜 + 中文补搜分别返回不同结果；国内一线（36kr，数字 ID URL）应被放行
+        en = _resp({"results": [
+            {"title": "EN", "content": "s", "url": "https://techcrunch.com/2026/06/04/ai-news"}]})
+        cn = _resp({"results": [
+            {"title": "国内大事", "content": "s", "url": "https://36kr.com/p/3299123"}]})
+        mock_post.side_effect = [en, cn]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            run("2026-05-27", _make_config(tmp))
+            with open(os.path.join(tmp, "2026-05-27", "news_raw.json"), encoding="utf-8") as f:
+                data = json.load(f)
+        titles = [d["title"] for d in data]
+        self.assertIn("EN", titles)
+        self.assertIn("国内大事", titles)  # 数字 ID URL 过不了 slug 规则，但 tier1 放行
+        self.assertTrue(all(d["tier"] == 1 for d in data))
+
+    @patch("src.news_fetcher.requests.post")
+    def test_sorts_by_tier_authority_first(self, mock_post):
+        en = _resp({"results": [
+            {"title": "farm", "content": "s", "url": "https://blockchain.news/post/abc-def"},
+            {"title": "prime", "content": "s", "url": "https://reuters.com/tech/openai-news-xyz"},
+        ]})
+        cn = _resp({"results": []})
+        mock_post.side_effect = [en, cn]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            run("2026-05-27", _make_config(tmp))
+            with open(os.path.join(tmp, "2026-05-27", "news_raw.json"), encoding="utf-8") as f:
+                data = json.load(f)
+        self.assertEqual(data[0]["source"], "reuters.com")  # tier1 排在 tier3 前
+        self.assertEqual(data[0]["tier"], 1)
+
+    @patch("src.news_fetcher.requests.post")
+    def test_cn_supplement_failure_is_ignored(self, mock_post):
+        # 中文补搜抛错不能拖垮主流程：英文结果照常落盘
+        en = _resp({"results": [
+            {"title": "EN", "content": "s", "url": "https://techcrunch.com/2026/06/04/ai-news"}]})
+        boom = MagicMock()
+        boom.raise_for_status.side_effect = Exception("cn down")
+        mock_post.side_effect = [en, boom]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            result = run("2026-05-27", _make_config(tmp))
+            with open(os.path.join(tmp, "2026-05-27", "news_raw.json"), encoding="utf-8") as f:
+                data = json.load(f)
+        self.assertTrue(result)
+        self.assertEqual([d["title"] for d in data], ["EN"])
 
 
 if __name__ == "__main__":
