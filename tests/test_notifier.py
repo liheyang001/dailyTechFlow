@@ -32,33 +32,34 @@ def test_article_text_strips_tags():
     assert "<" not in txt  # 标签都去掉了
 
 
-def test_build_message_body_is_inlined_article_for_phone_copy():
-    """正文 = 内联样式完整文章（手机打开即渲染，长按复制→粘进订阅号助手保留排版）：
-    <style> 块被内联剥离（微信/Gmail 不删内联），不含封面 base64；封面只作附件。"""
+def test_build_message_article_html_attachment_for_render_copy():
+    """文章作 .html 附件（text/html，浏览器打开渲染、全选复制即富文本可粘贴保留排版）；
+    带 <style> 原样进附件；正文仍是轻量预览。"""
     with tempfile.TemporaryDirectory() as base:
         cover = os.path.join(base, "cover.png")
         with open(cover, "wb") as f:
             f.write(b"\x89PNG\r\n fake")
         html = ('<!DOCTYPE html><html><head><meta charset="UTF-8">'
-                '<style>.lead{color:#D97757}</style></head>'
-                '<body><h1>标题X</h1><p class="lead">正文段落甲</p></body></html>')
+                '<style>.x{color:red}</style></head>'
+                '<body><h1>标题X</h1><p>正文段落甲</p></body></html>')
         msg = notifier._build_message(_EC, "2026-05-20", html, "标题X", cover)
 
-        # 只有封面附件（文章在正文，不再塞 html/源码附件）
         atts = [p for p in msg.walk() if p.get_content_disposition() == "attachment"]
-        assert [a.get_filename() for a in atts] == ["cover.png"]
+        names = [a.get_filename() for a in atts]
+        assert "cover.png" in names
+        # 文章作 .html 附件、text/html（浏览器打开渲染）
+        html_atts = [a for a in atts
+                     if a.get_filename() and a.get_filename().endswith(".html")]
+        assert len(html_atts) == 1
+        assert html_atts[0].get_content_type() == "text/html"
+        att_html = html_atts[0].get_payload(decode=True).decode("utf-8")
+        assert "<style" in att_html and "正文段落甲" in att_html
 
-        # 正文 html = 内联完整文章：有正文、有内联 style、无 <style> 块、无 class
+        # 正文仍是轻量预览
         body_html = [p.get_payload(decode=True).decode("utf-8") for p in msg.walk()
                      if p.get_content_type() == "text/html"
                      and p.get_content_disposition() != "attachment"]
-        assert len(body_html) == 1
-        bh = body_html[0]
-        assert "正文段落甲" in bh
-        assert "<style" not in bh          # <style> 块被内联剥离
-        assert "style=" in bh              # 有内联样式（微信粘贴保留）
-        assert "class=" not in bh          # class 已转成内联
-        assert "base64," not in bh         # 正文不含封面 base64
+        assert len(body_html) == 1 and "预览" in body_html[0]
 
 
 def test_missing_article_returns_false():

@@ -1,10 +1,10 @@
 """M5 推送模块：把当天生成的文章邮到你手机，方便起床躺床上审核。
 
 个人订阅号没有 API 发布权限，所以这里只负责「推送成品供审核」，不负责发布。
-邮件正文直接放内联版完整文章 HTML——内联样式无 <style> 块（Gmail 不会删）、
-不含封面 base64（不超 Gmail 102KB 截断线），Gmail 直接打开即排版好的文章，
-无需点开附件。封面 cover.png 单独作附件，可保存用作微信封面。
-合格了你再到「订阅号助手」App 手动发布。
+邮件正文放轻量预览（纯文本+简短 html）。完整带 <style> 的文章作 .html 附件：
+手机点开附件、用浏览器打开会渲染成排版页面，在页面里全选复制 → 粘进「订阅号助手」
+即保留排版（浏览器复制的是富文本，订阅号助手认；复制邮件正文/源码则会丢格式）。
+封面 cover.png 单独作附件，发图文时设为封面。
 
 约定 run(date_str, config) -> bool。只读当天 output 目录。
 邮箱未配置（password 为空）时优雅跳过，不报错、不中断流水线。
@@ -16,9 +16,7 @@ import ssl
 from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from html import unescape
-
-from . import wechat_inline
+from html import escape, unescape
 
 
 def _extract_title(html: str, fallback: str) -> str:
@@ -42,9 +40,24 @@ def _article_text(html: str) -> str:
     return "\n".join(out).strip()
 
 
-_FOOTER = ("手机发布：打开本邮件，正文就是渲染好的文章——长按全选复制，"
-           "直接粘进「订阅号助手」编辑器即保留排版（正文用内联样式，微信不会删）。"
-           "封面 cover.png 在附件，发图文时设为封面。")
+_FOOTER = ("手机发布：邮件里点开附件 → 选「用浏览器打开」（如 Chrome，别用 Gmail 内置预览）"
+           "→ 渲染成排版页面后全选复制 → 粘进「订阅号助手」，排版即保留。"
+           "关键：复制的是浏览器渲染后的页面，不是源码、也不是邮件正文（那两样都丢格式）。"
+           "封面 cover.png 在附件。")
+
+
+def _preview_html(title: str, text: str) -> str:
+    """邮件正文轻量预览：标题 + 引导语 + 纯文本正文。完整带样式文章看附件。"""
+    paras = "".join(f'<p style="margin:0 0 10px;line-height:1.7">{escape(p)}</p>'
+                    for p in text.split("\n") if p.strip())
+    return (
+        '<div style="max-width:600px;margin:0 auto;color:#1f1b16;font-size:15px;'
+        'font-family:-apple-system,Segoe UI,Roboto,sans-serif">'
+        f'<h2 style="font-size:20px;line-height:1.4;margin:0 0 6px">{escape(title)}</h2>'
+        '<p style="color:#8a8170;font-size:13px;margin:0 0 16px">'
+        '完整排版见附件 HTML，手机点开附件查看；以下仅纯文本预览：</p>'
+        f'{paras}</div>'
+    )
 
 
 def _build_message(ec: dict, date_str: str, html: str, title: str,
@@ -54,22 +67,27 @@ def _build_message(ec: dict, date_str: str, html: str, title: str,
     msg["To"] = ec["recipient"]
     msg["Subject"] = f"[DailyTechFlow] 今日文章待审 · {date_str}｜{title}"
 
-    # 正文：纯文本兜底 + 完整文章（内联样式版）。
-    # 内联版无 <style> 块（Gmail 不删、微信粘贴也不删）、不含封面 base64（不超 102KB），
-    # 手机打开邮件就是渲染好的文章，长按全选复制 → 粘进订阅号助手即保留排版。
+    # 正文：轻量预览（纯文本 + 简短 html）；完整带样式文章放附件供手机点开渲染。
     text = _article_text(html)
-    inline_html = wechat_inline.inline(html)
     body = MIMEMultipart("alternative")
     body.attach(MIMEText(f"{title}\n\n{text}\n\n—— {_FOOTER}", "plain", "utf-8"))
-    body.attach(MIMEText(inline_html, "html", "utf-8"))
+    body.attach(MIMEText(_preview_html(title, text), "html", "utf-8"))
     msg.attach(body)
 
-    # 封面 PNG 作为附件，发图文时设为封面
+    # 封面 PNG 作为附件，可保存用作微信文章封面
     if cover_path and os.path.exists(cover_path):
         with open(cover_path, "rb") as f:
             img = MIMEImage(f.read(), "png")  # 显式 png，不依赖类型猜测
         img.add_header("Content-Disposition", "attachment", filename="cover.png")
         msg.attach(img)
+
+    # 文章 HTML 附件：浏览器打开会 render 成排版页面，在页面里全选复制即得富文本，
+    # 粘进公众号后台/排版工具就保留排版——这是 6/2 验证过的发布路径。
+    # 关键：复制的是渲染后的页面，不是源码；粘源码进编辑器只会显示代码、不渲染。
+    att = MIMEText(html, "html", "utf-8")
+    att.add_header("Content-Disposition", "attachment",
+                   filename=f"{date_str}_article.html")
+    msg.attach(att)
     return msg
 
 
