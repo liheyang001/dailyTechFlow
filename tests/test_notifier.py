@@ -44,10 +44,13 @@ def test_build_message_body_is_full_article_cover_attached():
                 '<p style="margin:0">正文段落</p></body></html>')
         msg = notifier._build_message(_EC, "2026-05-20", html, "标题X", cover)
 
-        # 附件只有封面 png，没有 html 附件
+        # 附件含封面 png + 文章 html（你打开附件用）
         atts = [p for p in msg.walk() if p.get_content_disposition() == "attachment"]
-        assert [a.get_filename() for a in atts] == ["cover.png"]
-        assert atts[0].get_payload(decode=True).startswith(b"\x89PNG")
+        names = [a.get_filename() for a in atts]
+        assert "cover.png" in names
+        assert any(n and n.endswith(".html") for n in names)
+        png = [a for a in atts if a.get_filename() == "cover.png"][0]
+        assert png.get_payload(decode=True).startswith(b"\x89PNG")
 
         # Gmail 直接打开渲染的正文 html = 完整文章（含正文段落 + 内联样式）
         body_html = [p.get_payload(decode=True).decode("utf-8") for p in msg.walk()

@@ -40,8 +40,8 @@ def _article_text(html: str) -> str:
     return "\n".join(out).strip()
 
 
-_FOOTER = ("以上为完整文章（Gmail 直接查看即可，无需点开附件）。"
-           "封面图 cover.png 见附件，可保存用作微信文章封面。"
+_FOOTER = ("以上为完整文章（Gmail 直接查看即可）。"
+           "附件含文章 HTML 与封面 cover.png，可下载存档、浏览器打开或用作微信封面。"
            "审核合格后到「订阅号助手」App 发布。")
 
 
@@ -67,6 +67,12 @@ def _build_message(ec: dict, date_str: str, html: str, title: str,
             img = MIMEImage(f.read(), "png")  # 显式 png，不依赖类型猜测
         img.add_header("Content-Disposition", "attachment", filename="cover.png")
         msg.attach(img)
+
+    # 文章 HTML 附件：供下载/浏览器打开/存档（正文已含完整文章，这里供留存与离线用）
+    att = MIMEText(html, "html", "utf-8")
+    att.add_header("Content-Disposition", "attachment",
+                   filename=f"{date_str}_article.html")
+    msg.attach(att)
     return msg
 
 
